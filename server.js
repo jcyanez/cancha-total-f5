@@ -38,26 +38,6 @@ db.exec(`
   )
 `);
 
-// -----------------------------------------------------------------------
-// Función vieja que ya no usa nadie. Quedó del primer borrador cuando se
-// pensó en bloquear reservas en feriados. Se deja por si se retoma la idea.
-function esFeriado(fecha) {
-  const feriados = ['01-01', '04-11', '05-01', '07-25', '08-15', '09-15', '12-25'];
-  const mesDia = fecha.slice(5);
-  return feriados.includes(mesDia);
-}
-
-// Precios de temporada alta (plan viejo, ya no se usa - se dejó de cobrar
-// distinto en temporada alta porque el dueño lo canceló). No borrar por si
-// se retoma en diciembre.
-// const PRECIO_TEMPORADA_ALTA_DIURNO = 18000;
-// const PRECIO_TEMPORADA_ALTA_NOCTURNO = 25000;
-// function esTemporadaAlta(fecha) {
-//   const mes = Number(fecha.slice(5, 7));
-//   return mes === 12 || mes === 1;
-// }
-// -----------------------------------------------------------------------
-
 function formatColones(monto) {
   return '₡' + Math.round(monto).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
