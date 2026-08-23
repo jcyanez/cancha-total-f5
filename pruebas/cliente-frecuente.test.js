@@ -70,7 +70,7 @@ test('el cliente se reconoce por el teléfono, no por el nombre', async () => {
   });
 });
 
-test('una reserva cancelada no cuenta para volverse cliente frecuente', { todo: 'HALLAZGO C-3' }, async () => {
+test('una reserva cancelada no cuenta para volverse cliente frecuente', async () => {
   // Falla si: el conteo del mes deja de excluir las reservas canceladas.
   await conSistema(async (sistema) => {
     await registrarVarias(sistema, { cantidad: 3, desdeDia: 1 });

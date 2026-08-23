@@ -8,8 +8,8 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 71 pruebas — 67 pasan, 4 marcadas como fallo esperado, `verificar.sh` sale en 0.
-Cerrados: `C-1`, `C-2`. Pagado: `E-5`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+**Estado:** 71 pruebas — 68 pasan, 3 marcadas como fallo esperado, `verificar.sh` sale en 0.
+Cerrados: `C-1`, `C-2`, `C-3`. Pagado: `E-5`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -35,7 +35,7 @@ El código hace algo que contradice la especificación.
 |---|---|---|---|---|
 | **C-1** | `RN-19` — La hora con luz cuesta ₡20.000 **desde las 17:00**: la luz se enciende a las 5 de la tarde y el partido de las 5 ya va con luz | Cobra ₡20.000 **desde las 18:00**. El bloque de las 17:00 lo cobra, lo cotiza y lo muestra a ₡15.000 | `pruebas/tarifas.test.js` → *la hora de las 17:00 cuesta 20.000…*, *una reserva de las 17:00 queda cobrada a 20.000*, *la pantalla de disponibilidad muestra 20.000…* | **Cerrado** |
 | **C-2** | `RN-13` — El teléfono es **obligatorio** y tiene **exactamente 8 dígitos** | No se verifica nada: se acepta vacío, más corto, más largo y con caracteres que no son dígitos | `pruebas/validaciones.test.js` → *sin teléfono…*, *un teléfono de siete dígitos…*, *un teléfono de nueve dígitos…*, *un teléfono con letras…* | **Cerrado** |
-| **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | Abierto |
+| **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | **Cerrado** |
 | **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | Abierto |
 | **C-5** | `RN-27`, `RN-28` — Se cancela hasta **24 horas antes de la hora de inicio**; con menos, no hay cancelación | Compara solo **fechas de calendario**: cancela cualquier reserva de un día posterior a hoy, sin mirar la hora. El caso que describió la administradora —partido mañana a las 8:00, faltando 22 horas— se cancela | `pruebas/cancelacion.test.js` → *una reserva a menos de 24 horas no se cancela* | Abierto |
 
@@ -143,6 +143,30 @@ arreglo puesto para comprobar que **ninguna prueba en verde se rompió**: seguí
 **Dos decisiones que la especificación no fijaba, y quedan declaradas acá:** el teléfono se recorta
 antes de mirarlo, igual que ya se hacía con el nombre del cliente; y «ocho dígitos» se lee literal,
 así que `8811-2233` y `+506 88112233` se rechazan.
+
+---
+
+### C-3 — las canceladas contaban para el descuento · **cerrado**
+
+Commit de **comportamiento**: *«Comportamiento (C-3): las canceladas no cuentan para el cliente frecuente»*.
+
+El conteo del mes sumaba también las reservas canceladas, así que un cliente que apartaba cuatro
+bloques y cancelaba tres llegaba igual al descuento. La administradora lo dijo sin rodeos:
+frecuente es el que juega, no el que aparta (`RN-24`). La consulta ahora cuenta solo las activas.
+
+**Sin deuda de estructura en el camino:** el conteo ya estaba en un solo lugar.
+
+**Su prueba pasa sin haber sido modificada.** El diff sobre `pruebas/cliente-frecuente.test.js` es
+una línea: la marca de fallo esperado.
+
+**Lo que había que cuidar y se cuidó:** `RN-26` dice que el precio se fija al registrar y que
+cancelar no recalcula nada hacia atrás. El arreglo cambia **a quién se le da el descuento de acá en
+adelante**, no los precios ya cobrados. La prueba que vigila eso —*cancelar una reserva no cambia el
+precio ya cobrado en otra*— siguió en verde.
+
+**La suite antes y después:** de 67 en verde y 4 marcadas, a **68 en verde y 3 marcadas**, 0 fallos.
+Con el arreglo puesto y antes de quitar la marca, la suite seguía dando 67 y 0 fallos: ninguna
+prueba en verde se rompió.
 
 ---
 

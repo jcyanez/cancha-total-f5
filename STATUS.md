@@ -13,11 +13,11 @@ se borra de acá y su evidencia queda en el documento que le corresponde.
 
 | | |
 |---|---|
-| **Pruebas** | 71 — 67 pasan, **4 marcadas como fallo esperado** |
+| **Pruebas** | 71 — 68 pasan, **3 marcadas como fallo esperado** |
 | **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
-| **Hallazgos de comportamiento** | 5 · 2 cerrados (C-1, C-2) · **3 abiertos**: C-3, C-4, C-5 |
+| **Hallazgos de comportamiento** | 5 · 3 cerrados (C-1, C-2, C-3) · **2 abiertos**: C-4, C-5 |
 | **Hallazgos de estructura** | 10 · 1 pagado (E-5) · **9 abiertos** |
-| **Commits propios** | 5 encima de `65ce4b4` |
+| **Commits propios** | 6 encima de `65ce4b4` |
 
 El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
 voluntaria del encargo.
@@ -60,24 +60,13 @@ y hay que parar a mirarlo antes de seguir.
 
 | Tanda | Qué cierra | Commits | Verde | Marcadas |
 |---|---|---|---|---|
-| — | *estado actual* | — | 67 | 4 |
-| **3** | C-3 canceladas | 1 comportamiento | 68 | 3 |
+| — | *estado actual* | — | 68 | 3 |
 | **4** | E-1 E-2 E-3 E-6 testabilidad y reloj | 3 estructura | 68 | 3 |
 | **5** | E-4 + C-4 mes de registro | 1 estructura + 1 comportamiento | 70 | 1 |
 | **6** | C-5 plazo de cancelación | 1 comportamiento | 71 | 0 |
 | **7** | E-7 E-8 E-9 limpieza | 3 estructura | 71 | 0 |
 | **8** | E-10 → C-6 HTML escapado | 1 de red + 1 comportamiento | 72 | 0 |
 | **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
-
----
-
-## Tanda 3 · C-3 — las canceladas cuentan para frecuente
-
-- [ ] El conteo del mes excluye las canceladas (`RN-24`)
-- [ ] Comprobar que **no** toca `RN-26`: cancelar no recalcula el precio ya cobrado de otra reserva
-- [ ] Quitar la marca de su prueba
-- [ ] Suite: **68 en verde, 3 marcadas** · evidencia en `HALLAZGOS.md`
-- [ ] Commit de comportamiento
 
 ---
 
