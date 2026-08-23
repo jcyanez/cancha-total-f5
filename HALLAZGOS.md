@@ -9,7 +9,7 @@ Se cierran en los turnos de refactorización, **quitando la marca** de la prueba
 prueba misma. El avance se mide contando marcas quitadas.
 
 **Estado:** 71 pruebas — 68 pasan, 3 marcadas como fallo esperado, `verificar.sh` sale en 0.
-Cerrados: `C-1`, `C-2`, `C-3`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+Cerrados: `C-1`, `C-2`, `C-3`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. En parte: `E-4`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -55,7 +55,7 @@ un arreglo de comportamiento. **Ninguno se corrigió**: se anotan para decidir c
 | **E-1** | `server.js` no exporta nada y llama a `app.listen()` al cargarse | **Ninguna regla se puede probar en unidad.** Toda la suite tuvo que hacerse de integración, lanzando el proceso real. Las reglas con lógica propia —tarifa, descuento, plazo— merecerían pruebas unitarias con casos borde y hoy no las pueden tener | **Pagado** |
 | **E-2** | El puerto está fijo en el código (`const PUERTO = 3000`), sin variable de entorno | Las pruebas no pueden levantar el sistema en un puerto libre: hay que redirigir `listen()` desde afuera (`pruebas/soporte/arranque.js`) | **Pagado** |
 | **E-3** | La ruta de la base de datos está fija (`path.join(__dirname, 'reservas.db')`) | Las pruebas no pueden apuntar a una base propia: hay que interceptar la carga de `better-sqlite3` desde afuera. Sin eso, correr las pruebas destruiría los datos reales | **Pagado** |
-| **E-4** | No hay forma de registrar una reserva con una fecha de registro distinta de «ahora» | La prueba de `RN-23` que mira meses anteriores tiene que escribir directamente en la base, saltándose el camino del negocio y acoplándose al esquema | Abierto |
+| **E-4** | No hay forma de registrar una reserva con una fecha de registro distinta de «ahora» | La prueba de `RN-23` que mira meses anteriores tiene que escribir directamente en la base, saltándose el camino del negocio y acoplándose al esquema | **Pagado en parte** |
 | **E-5** | **La tarifa se calcula en tres lugares**, con los mismos números repetidos: la grilla de disponibilidad, el registro de la reserva y la cotización previa. No hay una función de tarifa | Está **en el camino directo de C-1**: corregir la hora de la luz obliga a tocar los tres sitios y a acertar en los tres | **Pagado** |
 | **E-6** | La regla de las 24 horas lee el reloj del sistema desde adentro de la regla | Sin poder inyectar el instante, la prueba de `RN-27` dependería del día en que se corra. Hubo que congelar el reloj desde afuera. Está **en el camino de C-5** | **Pagado** |
 | **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | Abierto |
@@ -218,3 +218,30 @@ en los tres commits, igual que antes de empezar. El diff **no toca ningún archi
 
 **Lo que esto destraba:** las reglas con lógica propia —tarifa, descuento, plazo— ya se pueden
 probar en unidad, que era el reclamo de `E-1`. Esas pruebas se escriben en su propia tanda.
+
+---
+
+### E-4 — no se podía registrar con otra fecha de registro · **pagado en parte**
+
+Commit de **estructura**: *«Estructura (E-4): la siembra de pruebas usa el reloj de las pruebas»*.
+
+**Lo que sí quedó pagado.** El sistema ya ofrece lo que el hallazgo reclamaba: se lo puede correr
+en cualquier instante (`CANCHA_AHORA`, de la tanda anterior) y la fecha de registro sale de ese
+reloj. Registrar con otra fecha de registro ya no es imposible: es configuración.
+
+**Un defecto que apareció al mirarlo de cerca.** La siembra de las pruebas escribía la fecha de
+registro con `datetime('now')` de SQLite, que **no** queda congelado junto con el reloj del resto de
+la suite. Sembraba «dos meses atrás» contando desde el reloj real de la máquina, mientras la regla
+miraba el mes congelado. Funcionaba por casualidad de calendario: en octubre de 2026, «dos meses
+atrás» habría caído justo en el mes congelado y la prueba habría empezado a fallar sola, sin que
+nadie tocara nada. Ahora la siembra cuenta hacia atrás desde el mismo instante en que corren las
+pruebas.
+
+**Lo que no se pagó, y por qué.** La siembra sigue escribiendo en la tabla en vez de pasar por el
+camino del negocio. Hacerlo bien significaría levantar un segundo sistema con el reloj en el pasado
+y registrar por HTTP, y eso vuelve **asíncrona** una función que hoy se llama sin `await`: habría
+que **modificar las pruebas**. No se hace. La deuda queda anotada como lo que es: media deuda,
+declarada, no disimulada.
+
+**Prueba de que no cambió el comportamiento:** suite en **68 en verde y 3 marcadas, 0 fallos**,
+antes y después. Ningún archivo de prueba tocado: solo el andamiaje.

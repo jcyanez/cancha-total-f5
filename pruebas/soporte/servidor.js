@@ -24,6 +24,14 @@ function rutaDeBaseNueva() {
   return path.join(os.tmpdir(), `cancha-total-pruebas-${process.pid}-${contador}.db`);
 }
 
+// El mismo formato de sello de tiempo que escribe el sistema.
+function selloDeTiempo(fecha) {
+  const dosCifras = (n) => String(n).padStart(2, '0');
+  const dia = `${fecha.getFullYear()}-${dosCifras(fecha.getMonth() + 1)}-${dosCifras(fecha.getDate())}`;
+  const reloj = `${dosCifras(fecha.getHours())}:${dosCifras(fecha.getMinutes())}:${dosCifras(fecha.getSeconds())}`;
+  return `${dia} ${reloj}`;
+}
+
 function borrarBase(ruta) {
   for (const sufijo of ['', '-wal', '-shm', '-journal']) {
     try {
@@ -144,12 +152,19 @@ async function levantarSistema({ ahora = AHORA, base = rutaDeBaseNueva() } = {})
     // Registra una reserva con una fecha de registro elegida. Es el único dato
     // que no se puede fijar por el camino del negocio (hallazgo de estructura
     // E-4), y hace falta para probar RN-23.
+    // La fecha de registro se cuenta hacia atrás desde el instante en que corren
+    // las pruebas, no desde el reloj real de la máquina. Antes usaba
+    // datetime('now') de SQLite, que no queda congelado con el resto: funcionaba
+    // por casualidad de calendario y se habría roto sola al cambiar de mes.
     sembrarConFechaDeRegistro({ cancha, fecha, hora, cliente, telefono, precio, estado = 'activa', mesesAtras }) {
+      const registro = new Date(ahora);
+      registro.setMonth(registro.getMonth() - mesesAtras);
+
       const bd = new BaseDeDatos(base);
       bd.prepare(
         `INSERT INTO reservas (cancha, fecha, hora, cliente, telefono, precio, estado, creada_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', ?))`
-      ).run(cancha, fecha, hora, cliente, telefono, precio, estado, `-${mesesAtras} months`);
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(cancha, fecha, hora, cliente, telefono, precio, estado, selloDeTiempo(registro));
       bd.close();
     },
 
