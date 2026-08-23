@@ -85,11 +85,25 @@ function getReservasDelDia(fecha) {
   ).all(fecha);
 }
 
+// Sello de tiempo con el formato que usa SQLite, tomado del reloj de la
+// aplicación. Antes lo ponía el valor por omisión de la tabla, que usa el
+// reloj de SQLite en UTC: en Costa Rica eso grababa una reserva del 31 a las
+// 18:30 como registrada al día siguiente, y en fin de mes, en el mes siguiente.
+function selloDeTiempo(fecha) {
+  const dosCifras = (n) => String(n).padStart(2, '0');
+  const dia = `${fecha.getFullYear()}-${dosCifras(fecha.getMonth() + 1)}-${dosCifras(fecha.getDate())}`;
+  const reloj = `${dosCifras(fecha.getHours())}:${dosCifras(fecha.getMinutes())}:${dosCifras(fecha.getSeconds())}`;
+  return `${dia} ${reloj}`;
+}
+
 function crearReserva(datos) {
   const info = db.prepare(
-    `INSERT INTO reservas (cancha, fecha, hora, cliente, telefono, precio, estado)
-     VALUES (?, ?, ?, ?, ?, ?, 'activa')`
-  ).run(datos.cancha, datos.fecha, datos.hora, datos.cliente, datos.telefono, datos.precio);
+    `INSERT INTO reservas (cancha, fecha, hora, cliente, telefono, precio, estado, creada_en)
+     VALUES (?, ?, ?, ?, ?, ?, 'activa', ?)`
+  ).run(
+    datos.cancha, datos.fecha, datos.hora, datos.cliente, datos.telefono, datos.precio,
+    selloDeTiempo(ahora())
+  );
   return info.lastInsertRowid;
 }
 
