@@ -9,7 +9,7 @@ Se cierran en los turnos de refactorización, **quitando la marca** de la prueba
 prueba misma. El avance se mide contando marcas quitadas.
 
 **Estado:** 71 pruebas — 68 pasan, 3 marcadas como fallo esperado, `verificar.sh` sale en 0.
-Cerrados: `C-1`, `C-2`, `C-3`. Pagado: `E-5`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+Cerrados: `C-1`, `C-2`, `C-3`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -52,12 +52,12 @@ un arreglo de comportamiento. **Ninguno se corrigió**: se anotan para decidir c
 
 | # | Qué pasa | Cómo se manifiesta | Estado |
 |---|---|---|---|
-| **E-1** | `server.js` no exporta nada y llama a `app.listen()` al cargarse | **Ninguna regla se puede probar en unidad.** Toda la suite tuvo que hacerse de integración, lanzando el proceso real. Las reglas con lógica propia —tarifa, descuento, plazo— merecerían pruebas unitarias con casos borde y hoy no las pueden tener | Abierto |
-| **E-2** | El puerto está fijo en el código (`const PUERTO = 3000`), sin variable de entorno | Las pruebas no pueden levantar el sistema en un puerto libre: hay que redirigir `listen()` desde afuera (`pruebas/soporte/arranque.js`) | Abierto |
-| **E-3** | La ruta de la base de datos está fija (`path.join(__dirname, 'reservas.db')`) | Las pruebas no pueden apuntar a una base propia: hay que interceptar la carga de `better-sqlite3` desde afuera. Sin eso, correr las pruebas destruiría los datos reales | Abierto |
+| **E-1** | `server.js` no exporta nada y llama a `app.listen()` al cargarse | **Ninguna regla se puede probar en unidad.** Toda la suite tuvo que hacerse de integración, lanzando el proceso real. Las reglas con lógica propia —tarifa, descuento, plazo— merecerían pruebas unitarias con casos borde y hoy no las pueden tener | **Pagado** |
+| **E-2** | El puerto está fijo en el código (`const PUERTO = 3000`), sin variable de entorno | Las pruebas no pueden levantar el sistema en un puerto libre: hay que redirigir `listen()` desde afuera (`pruebas/soporte/arranque.js`) | **Pagado** |
+| **E-3** | La ruta de la base de datos está fija (`path.join(__dirname, 'reservas.db')`) | Las pruebas no pueden apuntar a una base propia: hay que interceptar la carga de `better-sqlite3` desde afuera. Sin eso, correr las pruebas destruiría los datos reales | **Pagado** |
 | **E-4** | No hay forma de registrar una reserva con una fecha de registro distinta de «ahora» | La prueba de `RN-23` que mira meses anteriores tiene que escribir directamente en la base, saltándose el camino del negocio y acoplándose al esquema | Abierto |
 | **E-5** | **La tarifa se calcula en tres lugares**, con los mismos números repetidos: la grilla de disponibilidad, el registro de la reserva y la cotización previa. No hay una función de tarifa | Está **en el camino directo de C-1**: corregir la hora de la luz obliga a tocar los tres sitios y a acertar en los tres | **Pagado** |
-| **E-6** | La regla de las 24 horas lee el reloj del sistema desde adentro de la regla | Sin poder inyectar el instante, la prueba de `RN-27` dependería del día en que se corra. Hubo que congelar el reloj desde afuera. Está **en el camino de C-5** | Abierto |
+| **E-6** | La regla de las 24 horas lee el reloj del sistema desde adentro de la regla | Sin poder inyectar el instante, la prueba de `RN-27` dependería del día en que se corra. Hubo que congelar el reloj desde afuera. Está **en el camino de C-5** | **Pagado** |
 | **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | Abierto |
 | **E-8** | Código presente pero inactivo: la función de feriados que nadie llama, y las tarifas de temporada alta comentadas | La especificación declara que **no existen** (`FUERA-8`, `FUERA-9`). El código sugiere lo contrario a quien lo lea | Abierto |
 | **E-9** | El esquema de la tabla `reservas` está escrito **dos veces**: en `server.js` y en `datos.js` | Un cambio de esquema aplicado en uno solo deja los dos archivos discrepando en silencio | Abierto |
@@ -185,3 +185,36 @@ en los dos lados. Ninguna prueba fue tocada.
 **Por qué se pagó esta deuda y no otra:** estaba en el camino directo de `C-1`. Con la tarifa en
 tres lugares, corregir la hora de la luz obligaba a acertar el mismo arreglo tres veces; con la
 función única, es una sola línea.
+
+---
+
+### E-1, E-2, E-3, E-6 — el sistema no se dejaba arrancar ni fijar · **pagados**
+
+Tres commits de **estructura** seguidos:
+
+1. *«Estructura (E-1, E-2, E-3): el sistema se puede arrancar desde afuera»*
+2. *«Estructura (E-6): un solo reloj, y la fecha de registro sale de él»*
+3. *«Estructura: el andamiaje de pruebas deja de parchear el sistema»*
+
+Las cuatro deudas eran la misma de fondo: el sistema fijaba en el código su puerto, la ruta de su
+base y su reloj, y arrancaba solo al cargarse. Para poder probarlo sin destruir los datos reales, el
+andamiaje tenía que **parchear el sistema desde afuera**: reemplazaba la clase `Date`, interceptaba
+la carga de `better-sqlite3` y envolvía `listen()`. Setenta líneas de andamio sosteniendo lo que el
+sistema no ofrecía.
+
+Ahora los tres salen de configuración —`CANCHA_PUERTO`, `CANCHA_BD`, `CANCHA_AHORA`— **con los
+valores de siempre como omisión**: sin variables de entorno el sistema arranca exactamente como
+arrancaba. Cargar `server.js` ya no levanta un servidor, y el archivo exporta la aplicación.
+`pruebas/soporte/arranque.js` **se borró entero**.
+
+**El desfase de relojes, de regalo.** `creada_en` la escribía SQLite en UTC mientras el resto del
+sistema usaba hora local: una reserva hecha el 31 de agosto a las 18:30 quedaba registrada en
+setiembre. Ahora la escribe la aplicación con su único reloj. Se pagó **antes** de que `C-4` empiece
+a usar esa columna para decidir descuentos.
+
+**Prueba de que no cambió el comportamiento:** la suite da **68 en verde y 3 marcadas, 0 fallos**
+en los tres commits, igual que antes de empezar. El diff **no toca ningún archivo de prueba**: solo
+`server.js` y el andamiaje de `pruebas/soporte/`.
+
+**Lo que esto destraba:** las reglas con lógica propia —tarifa, descuento, plazo— ya se pueden
+probar en unidad, que era el reclamo de `E-1`. Esas pruebas se escriben en su propia tanda.

@@ -16,8 +16,8 @@ se borra de acá y su evidencia queda en el documento que le corresponde.
 | **Pruebas** | 71 — 68 pasan, **3 marcadas como fallo esperado** |
 | **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
 | **Hallazgos de comportamiento** | 5 · 3 cerrados (C-1, C-2, C-3) · **2 abiertos**: C-4, C-5 |
-| **Hallazgos de estructura** | 10 · 1 pagado (E-5) · **9 abiertos** |
-| **Commits propios** | 6 encima de `65ce4b4` |
+| **Hallazgos de estructura** | 10 · 5 pagados (E-1, E-2, E-3, E-5, E-6) · **5 abiertos**: E-4, E-7, E-8, E-9, E-10 |
+| **Commits propios** | 9 encima de `65ce4b4` |
 
 El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
 voluntaria del encargo.
@@ -61,7 +61,6 @@ y hay que parar a mirarlo antes de seguir.
 | Tanda | Qué cierra | Commits | Verde | Marcadas |
 |---|---|---|---|---|
 | — | *estado actual* | — | 68 | 3 |
-| **4** | E-1 E-2 E-3 E-6 testabilidad y reloj | 3 estructura | 68 | 3 |
 | **5** | E-4 + C-4 mes de registro | 1 estructura + 1 comportamiento | 70 | 1 |
 | **6** | C-5 plazo de cancelación | 1 comportamiento | 71 | 0 |
 | **7** | E-7 E-8 E-9 limpieza | 3 estructura | 71 | 0 |
@@ -69,31 +68,6 @@ y hay que parar a mirarlo antes de seguir.
 | **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
 
 ---
-
-## Tanda 4 · E-1 E-2 E-3 E-6 — la tríada de testabilidad y el reloj
-
-Tres commits de estructura seguidos. **Ninguno cambia comportamiento**: la suite tiene que dar 68 en
-verde y 3 marcadas en los tres, y el diff no puede tocar ninguna prueba.
-
-**Commit 1 — la aplicación se puede arrancar desde afuera** (`E-1`, `E-2`, `E-3`)
-
-- [ ] `server.js` deja de llamar a `app.listen()` al cargarse y exporta lo necesario para arrancarlo
-- [ ] Puerto y ruta de la base salen de configuración, con los valores de hoy como omisión: 3000 y `reservas.db`
-- [ ] El andamiaje deja de interceptar `listen()` y la carga de `better-sqlite3`
-- [ ] `npm start` sigue levantando el sistema en el 3000 exactamente igual
-
-**Commit 2 — un solo reloj** (`E-6`)
-
-- [ ] Una función `ahora()` es la única que lee el reloj, y se puede fijar desde afuera
-- [ ] `hoyISO()` pasa a leerla en vez de construir su propio `new Date()`
-- [ ] `creada_en` la escribe **la aplicación** con ese reloj, en vez del valor por omisión de SQLite
-- [ ] Con eso muere el desfase UTC/local de la frontera de mes, antes de que C-4 use la columna
-- [ ] El andamiaje deja de reemplazar la clase `Date` a la fuerza
-
-**Commit 3 — el andamiaje sin ataduras**
-
-- [ ] `pruebas/soporte/` ya no necesita parches ni `--require`: arranca el sistema por la puerta de entrada
-- [ ] Comprobar que ninguna prueba quedó dependiendo del orden, del reloj real ni de otra prueba
 
 ## Tanda 5 · E-4 + C-4 — el mes que cuenta es el del registro
 

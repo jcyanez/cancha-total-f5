@@ -1,6 +1,7 @@
 // Herramientas que usan las pruebas para hablar con el sistema.
-// Levanta el server.js real, sin modificarlo, sobre una base de datos propia y
-// con el reloj congelado (ver arranque.js).
+// Levanta el server.js real por su puerta de entrada, sobre una base de datos
+// propia, en un puerto libre y con el reloj puesto en un instante fijo. Los tres
+// son configuración del sistema: ya no hace falta parchearlo desde afuera.
 
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -9,7 +10,6 @@ const os = require('node:os');
 const BaseDeDatos = require('better-sqlite3');
 
 const RAIZ = path.join(__dirname, '..', '..');
-const ARRANQUE = path.join(__dirname, 'arranque.js');
 const SERVIDOR = path.join(RAIZ, 'server.js');
 
 // Instante en que ocurren todas las pruebas. Fijo, para que la regla de las 24
@@ -38,9 +38,9 @@ function borrarBase(ruta) {
 // Levanta el sistema y devuelve las acciones que una prueba puede realizar.
 // `ahora` permite correr un tramo de la prueba en otro instante.
 async function levantarSistema({ ahora = AHORA, base = rutaDeBaseNueva() } = {}) {
-  const proceso = spawn(process.execPath, ['--require', ARRANQUE, SERVIDOR], {
+  const proceso = spawn(process.execPath, [SERVIDOR], {
     cwd: RAIZ,
-    env: { ...process.env, PRUEBAS_AHORA: ahora, PRUEBAS_BD: base },
+    env: { ...process.env, CANCHA_AHORA: ahora, CANCHA_BD: base, CANCHA_PUERTO: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -53,7 +53,7 @@ async function levantarSistema({ ahora = AHORA, base = rutaDeBaseNueva() } = {})
 
     proceso.stdout.on('data', (trozo) => {
       salida += trozo;
-      const encontrado = salida.match(/__PUERTO_DE_PRUEBAS__=(\d+)/);
+      const encontrado = salida.match(/escuchando en el puerto (\d+)/);
       if (encontrado) {
         clearTimeout(limite);
         resolver(Number(encontrado[1]));
