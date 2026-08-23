@@ -13,11 +13,11 @@ se borra de acá y su evidencia queda en el documento que le corresponde.
 
 | | |
 |---|---|
-| **Pruebas** | 71 — 68 pasan, **3 marcadas como fallo esperado** |
+| **Pruebas** | 71 — 70 pasan, **1 marcada como fallo esperado** |
 | **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
-| **Hallazgos de comportamiento** | 5 · 3 cerrados (C-1, C-2, C-3) · **2 abiertos**: C-4, C-5 |
-| **Hallazgos de estructura** | 10 · 5 pagados (E-1, E-2, E-3, E-5, E-6) · **5 abiertos**: E-4, E-7, E-8, E-9, E-10 |
-| **Commits propios** | 9 encima de `65ce4b4` |
+| **Hallazgos de comportamiento** | 5 · 4 cerrados (C-1, C-2, C-3, C-4) · **1 abierto**: C-5 |
+| **Hallazgos de estructura** | 10 · 5 pagados y 1 en parte (E-4) · **4 abiertos**: E-7, E-8, E-9, E-10 |
+| **Commits propios** | 11 encima de `65ce4b4` |
 
 El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
 voluntaria del encargo.
@@ -60,30 +60,13 @@ y hay que parar a mirarlo antes de seguir.
 
 | Tanda | Qué cierra | Commits | Verde | Marcadas |
 |---|---|---|---|---|
-| — | *estado actual* | — | 68 | 3 |
-| **5** | E-4 + C-4 mes de registro | 1 estructura + 1 comportamiento | 70 | 1 |
+| — | *estado actual* | — | 70 | 1 |
 | **6** | C-5 plazo de cancelación | 1 comportamiento | 71 | 0 |
 | **7** | E-7 E-8 E-9 limpieza | 3 estructura | 71 | 0 |
 | **8** | E-10 → C-6 HTML escapado | 1 de red + 1 comportamiento | 72 | 0 |
 | **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
 
 ---
-
-## Tanda 5 · E-4 + C-4 — el mes que cuenta es el del registro
-
-**Paso 1 · Estructura (`E-4`)** — la prueba no debería escribir SQL a mano
-
-- [ ] `sembrarConFechaDeRegistro(...)` **conserva su nombre y su firma**, pero por dentro registra por el
-      camino del negocio con el reloj puesto en el pasado, en vez de escribir directo en la tabla
-- [ ] Con eso desaparece una dependencia oculta del reloj real que hoy tienen esas pruebas
-- [ ] Ninguna prueba cambia · suite **68 en verde, 3 marcadas**
-- [ ] Commit de estructura
-
-**Paso 2 · Comportamiento (`C-4`)**
-
-- [ ] El conteo del mes sale de la fecha de registro, no de la fecha del partido (`RN-23`)
-- [ ] Quitar la marca de sus **2** pruebas · suite **70 en verde, 1 marcada**
-- [ ] Evidencia en `HALLAZGOS.md` · commit de comportamiento
 
 ## Tanda 6 · C-5 — el plazo de cancelación
 

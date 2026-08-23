@@ -87,7 +87,7 @@ test('una reserva cancelada no cuenta para volverse cliente frecuente', async ()
   });
 });
 
-test('el mes que cuenta es aquel en que se hizo la reserva, no aquel en que se juega', { todo: 'HALLAZGO C-4' }, async () => {
+test('el mes que cuenta es aquel en que se hizo la reserva, no aquel en que se juega', async () => {
   // Falla si: el conteo del mes se hace sobre la fecha del partido en lugar de
   // sobre la fecha en que se registró la reserva.
   await conSistema(async (sistema) => {
@@ -104,7 +104,7 @@ test('el mes que cuenta es aquel en que se hizo la reserva, no aquel en que se j
   });
 });
 
-test('las reservas hechas en meses anteriores no cuentan para el mes actual', { todo: 'HALLAZGO C-4' }, async () => {
+test('las reservas hechas en meses anteriores no cuentan para el mes actual', async () => {
   // Falla si: el conteo del mes no distingue en qué mes se registró la reserva.
   await conSistema(async (sistema) => {
     for (const dia of ['01', '02', '03']) {

@@ -317,14 +317,16 @@ app.post('/reservas', (req, res) => {
   let precio = tarifaDelBloque(hora);
 
   // Paso 5: contar cuántas reservas lleva este teléfono en el mes para
-  // saber si aplica el descuento de cliente frecuente. Las canceladas no
-  // cuentan: frecuente es el que juega, no el que aparta (RN-24).
-  const mesFecha = fecha.slice(0, 7);
+  // saber si aplica el descuento de cliente frecuente. El mes que cuenta es
+  // aquel en que se registró la reserva, no aquel en que se juega el partido
+  // (RN-23). Las canceladas no cuentan: frecuente es el que juega, no el que
+  // aparta (RN-24).
+  const mesDeRegistro = hoyISO().slice(0, 7);
   const conteoMes = db.prepare(
     `SELECT COUNT(*) AS total FROM reservas
-     WHERE telefono = ? AND substr(fecha, 1, 7) = ?
+     WHERE telefono = ? AND substr(creada_en, 1, 7) = ?
        AND estado = 'activa'`
-  ).get(telefono, mesFecha);
+  ).get(telefono, mesDeRegistro);
 
   const totalConEstaReserva = conteoMes.total + 1;
   const aplicaDescuento = totalConEstaReserva >= 4;

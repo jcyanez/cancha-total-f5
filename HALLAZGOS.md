@@ -8,8 +8,8 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 71 pruebas — 68 pasan, 3 marcadas como fallo esperado, `verificar.sh` sale en 0.
-Cerrados: `C-1`, `C-2`, `C-3`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. En parte: `E-4`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+**Estado:** 71 pruebas — 70 pasan, 1 marcada como fallo esperado, `verificar.sh` sale en 0.
+Cerrados: `C-1`, `C-2`, `C-3`, `C-4`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. En parte: `E-4`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -36,7 +36,7 @@ El código hace algo que contradice la especificación.
 | **C-1** | `RN-19` — La hora con luz cuesta ₡20.000 **desde las 17:00**: la luz se enciende a las 5 de la tarde y el partido de las 5 ya va con luz | Cobra ₡20.000 **desde las 18:00**. El bloque de las 17:00 lo cobra, lo cotiza y lo muestra a ₡15.000 | `pruebas/tarifas.test.js` → *la hora de las 17:00 cuesta 20.000…*, *una reserva de las 17:00 queda cobrada a 20.000*, *la pantalla de disponibilidad muestra 20.000…* | **Cerrado** |
 | **C-2** | `RN-13` — El teléfono es **obligatorio** y tiene **exactamente 8 dígitos** | No se verifica nada: se acepta vacío, más corto, más largo y con caracteres que no son dígitos | `pruebas/validaciones.test.js` → *sin teléfono…*, *un teléfono de siete dígitos…*, *un teléfono de nueve dígitos…*, *un teléfono con letras…* | **Cerrado** |
 | **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | **Cerrado** |
-| **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | Abierto |
+| **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | **Cerrado** |
 | **C-5** | `RN-27`, `RN-28` — Se cancela hasta **24 horas antes de la hora de inicio**; con menos, no hay cancelación | Compara solo **fechas de calendario**: cancela cualquier reserva de un día posterior a hoy, sin mirar la hora. El caso que describió la administradora —partido mañana a las 8:00, faltando 22 horas— se cancela | `pruebas/cancelacion.test.js` → *una reserva a menos de 24 horas no se cancela* | Abierto |
 
 **Un mismo hallazgo, varias pruebas.** C-1 tiene tres porque la tarifa está calculada en tres
@@ -245,3 +245,24 @@ declarada, no disimulada.
 
 **Prueba de que no cambió el comportamiento:** suite en **68 en verde y 3 marcadas, 0 fallos**,
 antes y después. Ningún archivo de prueba tocado: solo el andamiaje.
+
+---
+
+### C-4 — el mes del partido en vez del mes del registro · **cerrado**
+
+Commit de **comportamiento**: *«Comportamiento (C-4): el mes que cuenta es el del registro»*.
+
+El conteo de cliente frecuente miraba el mes de la **fecha del partido**. Con eso, un cliente que
+aparta hoy cuatro partidos de diciembre recibe el descuento de diciembre, y quien aparta cuatro
+partidos este mes repartidos en meses distintos no recibe ninguno. La `§7.4` de la especificación
+resolvió la ambigüedad de la administradora por decisión del cliente: el mes es el del **registro**
+(`RN-23`). La columna estaba ahí desde el principio y nadie la usaba.
+
+**La deuda que estaba en su camino:** `E-4` y `E-6`, pagadas antes en sus propios commits. Sin
+el reloj único, empezar a usar `creada_en` habría metido el desfase UTC/local en una regla que
+decide plata: una reserva del 31 a las 18:30 habría contado para el mes siguiente.
+
+**Sus dos pruebas pasan sin haber sido modificadas.** El diff son dos líneas, las dos marcas.
+
+**La suite antes y después:** de 68 en verde y 3 marcadas, a **70 en verde y 1 marcada**, 0 fallos.
+Con el arreglo puesto y antes de quitar las marcas, seguía dando 68 y 0 fallos.
