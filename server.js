@@ -5,11 +5,24 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const path = require('path');
 
+// Configuración. Los valores por omisión son los de siempre: el sistema sin
+// variables de entorno arranca exactamente como arrancaba. Existen para poder
+// levantarlo en otro puerto, contra otra base o con el reloj puesto en un
+// instante fijo, sin tocar el código (hallazgos E-1, E-2, E-3, E-6).
+const PUERTO = Number(process.env.CANCHA_PUERTO ?? 3000);
+const RUTA_BASE = process.env.CANCHA_BD || path.join(__dirname, 'reservas.db');
+const INSTANTE_FIJO = process.env.CANCHA_AHORA ? new Date(process.env.CANCHA_AHORA) : null;
+
+// El único lugar del sistema que lee el reloj.
+function ahora() {
+  return INSTANTE_FIJO ? new Date(INSTANTE_FIJO) : new Date();
+}
+
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const db = new Database(path.join(__dirname, 'reservas.db'));
+const db = new Database(RUTA_BASE);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS reservas (
@@ -81,7 +94,7 @@ function crearReserva(datos) {
 }
 
 function hoyISO() {
-  const d = new Date();
+  const d = ahora();
   const mes = String(d.getMonth() + 1).padStart(2, '0');
   const dia = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${mes}-${dia}`;
@@ -378,7 +391,12 @@ app.get('/api/cotizar', (req, res) => {
   res.json({ precio, precioFormateado: formatColones(precio) });
 });
 
-const PUERTO = 3000;
-app.listen(PUERTO, () => {
-  console.log(`Cancha Total F5 escuchando en el puerto ${PUERTO}`);
-});
+// Solo arranca si se lo invoca directamente. Cargar este archivo desde una
+// prueba ya no levanta un servidor ni ocupa un puerto.
+if (require.main === module) {
+  const servidor = app.listen(PUERTO, () => {
+    console.log(`Cancha Total F5 escuchando en el puerto ${servidor.address().port}`);
+  });
+}
+
+module.exports = { app, ahora, tarifaDelBloque };
