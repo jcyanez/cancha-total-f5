@@ -22,7 +22,7 @@ test('una reserva con todos sus datos queda registrada', async () => {
   });
 });
 
-test('sin teléfono no se registra la reserva', { todo: 'HALLAZGO C-2' }, async () => {
+test('sin teléfono no se registra la reserva', async () => {
   // Falla si: el teléfono deja de ser obligatorio.
   await conSistema(async (sistema) => {
     await sistema.reservar({ ...RESERVA_VALIDA, telefono: '' });
@@ -30,7 +30,7 @@ test('sin teléfono no se registra la reserva', { todo: 'HALLAZGO C-2' }, async 
   });
 });
 
-test('un teléfono de siete dígitos no se registra', { todo: 'HALLAZGO C-2' }, async () => {
+test('un teléfono de siete dígitos no se registra', async () => {
   // Falla si: se acepta un teléfono más corto que ocho dígitos.
   await conSistema(async (sistema) => {
     await sistema.reservar({ ...RESERVA_VALIDA, telefono: '8811223' });
@@ -38,7 +38,7 @@ test('un teléfono de siete dígitos no se registra', { todo: 'HALLAZGO C-2' }, 
   });
 });
 
-test('un teléfono de nueve dígitos no se registra', { todo: 'HALLAZGO C-2' }, async () => {
+test('un teléfono de nueve dígitos no se registra', async () => {
   // Falla si: se acepta un teléfono más largo que ocho dígitos.
   await conSistema(async (sistema) => {
     await sistema.reservar({ ...RESERVA_VALIDA, telefono: '881122334' });
@@ -46,7 +46,7 @@ test('un teléfono de nueve dígitos no se registra', { todo: 'HALLAZGO C-2' }, 
   });
 });
 
-test('un teléfono con letras no se registra', { todo: 'HALLAZGO C-2' }, async () => {
+test('un teléfono con letras no se registra', async () => {
   // Falla si: se acepta como teléfono algo que no son ocho dígitos.
   await conSistema(async (sistema) => {
     await sistema.reservar({ ...RESERVA_VALIDA, telefono: '8811-2233' });

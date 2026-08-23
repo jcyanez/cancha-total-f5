@@ -235,11 +235,12 @@ app.post('/reservas', (req, res) => {
   const fecha = req.body.fecha;
   const horaTexto = req.body.hora;
   const clienteTexto = req.body.cliente;
-  const telefono = req.body.telefono;
+  const telefonoTexto = req.body.telefono;
 
   const cancha = Number(canchaTexto);
   const hora = Number(horaTexto);
   const cliente = (clienteTexto || '').trim();
+  const telefono = (telefonoTexto || '').trim();
 
   // Paso 2: validar cada campo.
   const errores = [];
@@ -264,6 +265,12 @@ app.post('/reservas', (req, res) => {
 
   if (!cliente) {
     errores.push('Falta el nombre del cliente.');
+  }
+
+  if (!telefono) {
+    errores.push('Falta el teléfono del cliente.');
+  } else if (!/^[0-9]{8}$/.test(telefono)) {
+    errores.push('El teléfono debe tener exactamente ocho dígitos.');
   }
 
   if (errores.length > 0) {
