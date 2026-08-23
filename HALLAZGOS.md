@@ -56,7 +56,7 @@ un arreglo de comportamiento. **Ninguno se corrigió**: se anotan para decidir c
 | **E-2** | El puerto está fijo en el código (`const PUERTO = 3000`), sin variable de entorno | Las pruebas no pueden levantar el sistema en un puerto libre: hay que redirigir `listen()` desde afuera (`pruebas/soporte/arranque.js`) | Abierto |
 | **E-3** | La ruta de la base de datos está fija (`path.join(__dirname, 'reservas.db')`) | Las pruebas no pueden apuntar a una base propia: hay que interceptar la carga de `better-sqlite3` desde afuera. Sin eso, correr las pruebas destruiría los datos reales | Abierto |
 | **E-4** | No hay forma de registrar una reserva con una fecha de registro distinta de «ahora» | La prueba de `RN-23` que mira meses anteriores tiene que escribir directamente en la base, saltándose el camino del negocio y acoplándose al esquema | Abierto |
-| **E-5** | **La tarifa se calcula en tres lugares**, con los mismos números repetidos: la grilla de disponibilidad, el registro de la reserva y la cotización previa. No hay una función de tarifa | Está **en el camino directo de C-1**: corregir la hora de la luz obliga a tocar los tres sitios y a acertar en los tres | Abierto |
+| **E-5** | **La tarifa se calcula en tres lugares**, con los mismos números repetidos: la grilla de disponibilidad, el registro de la reserva y la cotización previa. No hay una función de tarifa | Está **en el camino directo de C-1**: corregir la hora de la luz obliga a tocar los tres sitios y a acertar en los tres | **Pagado** |
 | **E-6** | La regla de las 24 horas lee el reloj del sistema desde adentro de la regla | Sin poder inyectar el instante, la prueba de `RN-27` dependería del día en que se corra. Hubo que congelar el reloj desde afuera. Está **en el camino de C-5** | Abierto |
 | **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | Abierto |
 | **E-8** | Código presente pero inactivo: la función de feriados que nadie llama, y las tarifas de temporada alta comentadas | La especificación declara que **no existen** (`FUERA-8`, `FUERA-9`). El código sugiere lo contrario a quien lo lea | Abierto |
@@ -89,3 +89,23 @@ las pruebas; el remedio es trabajo del turno de refactorización, con la red ya 
 
 Al cerrar un hallazgo se anota aquí su **evidencia de cierre**: qué commit lo cerró, y que su
 prueba pasa sin haber sido modificada.
+
+---
+
+## Evidencia de cierre
+
+### E-5 — la tarifa calculada en tres lugares · **pagado**
+
+Commit de **estructura**: *«Estructura (E-5): una sola función de tarifa, en vez de tres»*.
+
+La tarifa quedó en una única función, `tarifaDelBloque(hora)`, con los tres números que antes
+estaban repetidos convertidos en constantes con nombre. Los tres sitios que la calculaban —la
+grilla de disponibilidad, el registro de la reserva y la cotización previa— ahora la llaman.
+
+**Prueba de que no cambió el comportamiento:** la suite da exactamente lo mismo antes y después
+del commit — 71 pruebas, 60 en verde, 0 fallos, las mismas 11 marcadas. `verificar.sh` sale en 0
+en los dos lados. Ninguna prueba fue tocada.
+
+**Por qué se pagó esta deuda y no otra:** estaba en el camino directo de `C-1`. Con la tarifa en
+tres lugares, corregir la hora de la luz obligaba a acertar el mismo arreglo tres veces; con la
+función única, es una sola línea.

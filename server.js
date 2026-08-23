@@ -49,6 +49,15 @@ function formatColones(monto) {
   return '₡' + Math.round(monto).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+// Tarifa del bloque, determinada por su hora de inicio (RN-18, RN-19, RN-20).
+const PRECIO_DIURNO = 15000;
+const PRECIO_CON_LUZ = 20000;
+const HORA_EN_QUE_ENCIENDE_LA_LUZ = 18;
+
+function tarifaDelBloque(hora) {
+  return hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? PRECIO_CON_LUZ : PRECIO_DIURNO;
+}
+
 function checkDisponible(cancha, fecha, hora) {
   const fila = db.prepare(
     `SELECT COUNT(*) AS total FROM reservas
@@ -123,12 +132,7 @@ app.get('/', (req, res) => {
   let filasCancha2 = '';
   for (let hora = 8; hora <= 21; hora++) {
     // Tarifa del bloque para pintar la disponibilidad.
-    let precio;
-    if (hora >= 18) {
-      precio = 20000;
-    } else {
-      precio = 15000;
-    }
+    const precio = tarifaDelBloque(hora);
 
     const libre1 = checkDisponible(1, fecha, hora);
     filasCancha1 += `<tr><td>${hora}:00</td><td class="${libre1 ? 'libre' : 'ocupado'}">${libre1 ? 'Libre' : 'Ocupado'}</td><td>${formatColones(precio)}</td></tr>`;
@@ -276,12 +280,7 @@ app.post('/reservas', (req, res) => {
   }
 
   // Paso 4: calcular el precio según el horario.
-  let precio;
-  if (hora >= 18) {
-    precio = 20000;
-  } else {
-    precio = 15000;
-  }
+  let precio = tarifaDelBloque(hora);
 
   // Paso 5: contar cuántas reservas lleva este teléfono en el mes para
   // saber si aplica el descuento de cliente frecuente.
@@ -365,12 +364,7 @@ app.get('/api/cotizar', (req, res) => {
   const hora = Number(req.query.hora);
 
   // Cotización rápida para el formulario.
-  let precio;
-  if (hora >= 18) {
-    precio = 20000;
-  } else {
-    precio = 15000;
-  }
+  const precio = tarifaDelBloque(hora);
 
   res.json({ precio, precioFormateado: formatColones(precio) });
 });
