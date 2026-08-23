@@ -8,8 +8,8 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado al escribir este documento:** 71 pruebas — 60 pasan, 11 marcadas como fallo esperado,
-`verificar.sh` sale en 0. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+**Estado:** 71 pruebas — 63 pasan, 8 marcadas como fallo esperado, `verificar.sh` sale en 0.
+Cerrado: `C-1`. Pagado: `E-5`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -33,7 +33,7 @@ El código hace algo que contradice la especificación.
 
 | # | Condición (de la especificación) | Qué hace hoy | Pruebas | Estado |
 |---|---|---|---|---|
-| **C-1** | `RN-19` — La hora con luz cuesta ₡20.000 **desde las 17:00**: la luz se enciende a las 5 de la tarde y el partido de las 5 ya va con luz | Cobra ₡20.000 **desde las 18:00**. El bloque de las 17:00 lo cobra, lo cotiza y lo muestra a ₡15.000 | `pruebas/tarifas.test.js` → *la hora de las 17:00 cuesta 20.000…*, *una reserva de las 17:00 queda cobrada a 20.000*, *la pantalla de disponibilidad muestra 20.000…* | Abierto |
+| **C-1** | `RN-19` — La hora con luz cuesta ₡20.000 **desde las 17:00**: la luz se enciende a las 5 de la tarde y el partido de las 5 ya va con luz | Cobra ₡20.000 **desde las 18:00**. El bloque de las 17:00 lo cobra, lo cotiza y lo muestra a ₡15.000 | `pruebas/tarifas.test.js` → *la hora de las 17:00 cuesta 20.000…*, *una reserva de las 17:00 queda cobrada a 20.000*, *la pantalla de disponibilidad muestra 20.000…* | **Cerrado** |
 | **C-2** | `RN-13` — El teléfono es **obligatorio** y tiene **exactamente 8 dígitos** | No se verifica nada: se acepta vacío, más corto, más largo y con caracteres que no son dígitos | `pruebas/validaciones.test.js` → *sin teléfono…*, *un teléfono de siete dígitos…*, *un teléfono de nueve dígitos…*, *un teléfono con letras…* | Abierto |
 | **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | Abierto |
 | **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | Abierto |
@@ -93,6 +93,34 @@ prueba pasa sin haber sido modificada.
 ---
 
 ## Evidencia de cierre
+
+### C-1 — la tarifa con luz empezaba a las 18:00 · **cerrado**
+
+Commit de **comportamiento**: *«Comportamiento (C-1): la luz enciende a las 17:00, no a las 18:00»*.
+
+El cambio es **una sola línea**: la hora en que enciende la luz pasó de `18` a `17`, dentro de la
+única función de tarifa que dejó el commit anterior. El bloque de las 17:00 pasa a cobrarse,
+cotizarse y mostrarse a ₡20.000, como pide `RN-19`.
+
+**Sus tres pruebas pasan sin haber sido modificadas.** Lo único que se les tocó fue la marca de
+fallo esperado `{ todo: 'HALLAZGO C-1' }`: el nombre, el comentario de qué las haría fallar y la
+aserción quedaron letra por letra como estaban. El `git diff` del commit lo muestra: tres líneas
+cambiadas en `pruebas/tarifas.test.js`, todas la misma marca.
+
+**La suite antes y después:**
+
+| | Antes | Después |
+|---|---|---|
+| Pruebas | 71 | 71 |
+| En verde | 60 | **63** |
+| Marcadas como fallo esperado | 11 | **8** |
+| Fallos | 0 | 0 |
+| `verificar.sh` | 0 | 0 |
+
+Las tres que se sumaron al verde son exactamente las tres de `C-1`. Las 8 que siguen marcadas son
+`C-2` (4), `C-3` (1), `C-4` (2) y `C-5` (1).
+
+---
 
 ### E-5 — la tarifa calculada en tres lugares · **pagado**
 

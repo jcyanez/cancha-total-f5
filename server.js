@@ -52,7 +52,7 @@ function formatColones(monto) {
 // Tarifa del bloque, determinada por su hora de inicio (RN-18, RN-19, RN-20).
 const PRECIO_DIURNO = 15000;
 const PRECIO_CON_LUZ = 20000;
-const HORA_EN_QUE_ENCIENDE_LA_LUZ = 18;
+const HORA_EN_QUE_ENCIENDE_LA_LUZ = 17;
 
 function tarifaDelBloque(hora) {
   return hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? PRECIO_CON_LUZ : PRECIO_DIURNO;

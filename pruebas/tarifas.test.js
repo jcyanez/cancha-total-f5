@@ -27,7 +27,7 @@ test('la hora de las 16:00 cuesta 15.000, es el último bloque sin luz', async (
   });
 });
 
-test('la hora de las 17:00 cuesta 20.000 porque la luz ya está encendida', { todo: 'HALLAZGO C-1' }, async () => {
+test('la hora de las 17:00 cuesta 20.000 porque la luz ya está encendida', async () => {
   // Falla si: el borde de la tarifa con luz no está en las 17:00.
   await conSistema(async (sistema) => {
     const cotizacion = await sistema.cotizar(17);
@@ -43,7 +43,7 @@ test('la hora de las 21:00 cuesta 20.000', async () => {
   });
 });
 
-test('una reserva de las 17:00 queda cobrada a 20.000', { todo: 'HALLAZGO C-1' }, async () => {
+test('una reserva de las 17:00 queda cobrada a 20.000', async () => {
   // Falla si: el precio que se guarda para el bloque de las 17:00 no es el de
   // la hora con luz.
   await conSistema(async (sistema) => {
@@ -64,7 +64,7 @@ test('una reserva de las 16:00 queda cobrada a 15.000', async () => {
   });
 });
 
-test('la pantalla de disponibilidad muestra 20.000 en el bloque de las 17:00', { todo: 'HALLAZGO C-1' }, async () => {
+test('la pantalla de disponibilidad muestra 20.000 en el bloque de las 17:00', async () => {
   // Falla si: la tarifa que se le muestra al cliente en la grilla no coincide
   // con la tarifa con luz.
   await conSistema(async (sistema) => {
