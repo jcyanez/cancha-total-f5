@@ -8,8 +8,9 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 71 pruebas — 70 pasan, 1 marcada como fallo esperado, `verificar.sh` sale en 0.
-Cerrados: `C-1`, `C-2`, `C-3`, `C-4`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`. En parte: `E-4`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+**Estado:** 71 pruebas — **las 71 pasan, ninguna marcada**, `verificar.sh` sale en 0.
+Cerrados los cinco hallazgos de comportamiento. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`.
+En parte: `E-4`. Siguen abiertos: `E-7`, `E-8`, `E-9`, `E-10`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -37,7 +38,7 @@ El código hace algo que contradice la especificación.
 | **C-2** | `RN-13` — El teléfono es **obligatorio** y tiene **exactamente 8 dígitos** | No se verifica nada: se acepta vacío, más corto, más largo y con caracteres que no son dígitos | `pruebas/validaciones.test.js` → *sin teléfono…*, *un teléfono de siete dígitos…*, *un teléfono de nueve dígitos…*, *un teléfono con letras…* | **Cerrado** |
 | **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | **Cerrado** |
 | **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | **Cerrado** |
-| **C-5** | `RN-27`, `RN-28` — Se cancela hasta **24 horas antes de la hora de inicio**; con menos, no hay cancelación | Compara solo **fechas de calendario**: cancela cualquier reserva de un día posterior a hoy, sin mirar la hora. El caso que describió la administradora —partido mañana a las 8:00, faltando 22 horas— se cancela | `pruebas/cancelacion.test.js` → *una reserva a menos de 24 horas no se cancela* | Abierto |
+| **C-5** | `RN-27`, `RN-28` — Se cancela hasta **24 horas antes de la hora de inicio**; con menos, no hay cancelación | Compara solo **fechas de calendario**: cancela cualquier reserva de un día posterior a hoy, sin mirar la hora. El caso que describió la administradora —partido mañana a las 8:00, faltando 22 horas— se cancela | `pruebas/cancelacion.test.js` → *una reserva a menos de 24 horas no se cancela* | **Cerrado** |
 
 **Un mismo hallazgo, varias pruebas.** C-1 tiene tres porque la tarifa está calculada en tres
 lugares distintos (ver `E-5`): arreglarla en uno solo deja los otros dos en rojo. C-2 tiene cuatro
@@ -266,3 +267,29 @@ decide plata: una reserva del 31 a las 18:30 habría contado para el mes siguien
 
 **La suite antes y después:** de 68 en verde y 3 marcadas, a **70 en verde y 1 marcada**, 0 fallos.
 Con el arreglo puesto y antes de quitar las marcas, seguía dando 68 y 0 fallos.
+
+---
+
+### C-5 — el plazo se medía en días de calendario · **cerrado**
+
+Commit de **comportamiento**: *«Comportamiento (C-5): el plazo se mide contra la hora del partido»*.
+
+La regla comparaba **fechas**: cancelaba cualquier reserva de un día posterior a hoy, sin mirar la
+hora del partido ni la hora actual. El ejemplo que dio la administradora para explicar que **no** se
+puede —«el partido es mañana a las 8 de la mañana y ya son las 11 de la noche»— se cancelaba sin
+problema; y al revés, un partido de hoy a las 21:00 consultado a las 8:00 de la mañana no se podía
+cancelar aunque faltaban trece horas… que es lo correcto, pero por la razón equivocada.
+
+Ahora se cuentan las horas hasta el inicio del partido y se exigen 24 o más (`RN-27`, `RN-28`).
+
+**La deuda que estaba en su camino:** `E-6`, el reloj metido dentro de la regla, pagada en su
+propio commit. Sobre ella, este arreglo es una función pura de cuatro líneas: se le pasan la reserva
+y el instante, y devuelve cuántas horas faltan. No lee el reloj ni la base.
+
+**El borde quedó donde tenía que quedar:** con exactamente 24 horas **sí** se cancela; con 22, no.
+Son dos pruebas distintas y las dos están en verde.
+
+**Su prueba pasa sin haber sido modificada.** El diff es una línea.
+
+**La suite antes y después:** de 70 en verde y 1 marcada, a **71 en verde y ninguna marcada**, 0
+fallos. Con el arreglo puesto y antes de quitar la marca, seguía dando 70 y 0 fallos.

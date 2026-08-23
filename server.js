@@ -71,6 +71,17 @@ function tarifaDelBloque(hora) {
   return hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? PRECIO_CON_LUZ : PRECIO_DIURNO;
 }
 
+// Plazo de cancelación (RN-27, RN-28): se mide en horas hasta el inicio del
+// partido, no en días de calendario.
+const HORAS_DE_PLAZO_PARA_CANCELAR = 24;
+
+// Horas que faltan para que empiece el partido de una reserva, contadas desde
+// un instante dado. No lee el reloj ni la base: se le pasa todo.
+function horasHastaElPartido(reserva, instante) {
+  const inicio = new Date(`${reserva.fecha}T${String(reserva.hora).padStart(2, '0')}:00:00`);
+  return (inicio - instante) / (1000 * 60 * 60);
+}
+
 function checkDisponible(cancha, fecha, hora) {
   const fila = db.prepare(
     `SELECT COUNT(*) AS total FROM reservas
@@ -362,9 +373,8 @@ app.post('/reservas/:id/cancelar', (req, res) => {
     return res.send(layout('Error', `<div class="error">La reserva #${id} ya estaba cancelada.</div><p><a href="/dia/${reserva.fecha}">Volver</a></p>`));
   }
 
-  // Regla de las 24 horas: la reserva tiene que ser para una fecha futura.
-  const hoyFecha = hoyISO();
-  if (reserva.fecha > hoyFecha) {
+  // Regla de las 24 horas: faltan 24 o más hasta que empiece el partido.
+  if (horasHastaElPartido(reserva, ahora()) >= HORAS_DE_PLAZO_PARA_CANCELAR) {
     db.prepare(`UPDATE reservas SET estado = 'cancelada' WHERE id = ?`).run(id);
     return res.send(layout('Cancelada', `<div class="ok">Reserva #${id} cancelada.</div><p><a href="/dia/${reserva.fecha}">Volver</a></p>`));
   } else {
@@ -415,4 +425,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, ahora, tarifaDelBloque };
+module.exports = { app, ahora, tarifaDelBloque, horasHastaElPartido };

@@ -41,7 +41,7 @@ test('una reserva a exactamente 24 horas se cancela', async () => {
   });
 });
 
-test('una reserva a menos de 24 horas no se cancela', { todo: 'HALLAZGO C-5' }, async () => {
+test('una reserva a menos de 24 horas no se cancela', async () => {
   // Falla si: el plazo se mide en días de calendario en lugar de en horas
   // hasta el inicio del partido.
   await conSistema(async (sistema) => {

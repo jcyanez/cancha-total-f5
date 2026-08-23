@@ -13,11 +13,11 @@ se borra de acá y su evidencia queda en el documento que le corresponde.
 
 | | |
 |---|---|
-| **Pruebas** | 71 — 70 pasan, **1 marcada como fallo esperado** |
+| **Pruebas** | 71 — **las 71 pasan, ninguna marcada** |
 | **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
-| **Hallazgos de comportamiento** | 5 · 4 cerrados (C-1, C-2, C-3, C-4) · **1 abierto**: C-5 |
+| **Hallazgos de comportamiento** | 5 · **los cinco cerrados** |
 | **Hallazgos de estructura** | 10 · 5 pagados y 1 en parte (E-4) · **4 abiertos**: E-7, E-8, E-9, E-10 |
-| **Commits propios** | 11 encima de `65ce4b4` |
+| **Commits propios** | 12 encima de `65ce4b4` |
 
 El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
 voluntaria del encargo.
@@ -60,22 +60,10 @@ y hay que parar a mirarlo antes de seguir.
 
 | Tanda | Qué cierra | Commits | Verde | Marcadas |
 |---|---|---|---|---|
-| — | *estado actual* | — | 70 | 1 |
-| **6** | C-5 plazo de cancelación | 1 comportamiento | 71 | 0 |
+| — | *estado actual* | — | 71 | 0 |
 | **7** | E-7 E-8 E-9 limpieza | 3 estructura | 71 | 0 |
 | **8** | E-10 → C-6 HTML escapado | 1 de red + 1 comportamiento | 72 | 0 |
 | **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
-
----
-
-## Tanda 6 · C-5 — el plazo de cancelación
-
-`E-6` ya quedó pagado en la Tanda 4, así que acá solo hay comportamiento.
-
-- [ ] La regla compara el **instante de inicio del partido** contra `ahora()`, y exige 24 horas o más (`RN-27`, `RN-28`)
-- [ ] Las 24 horas justas **sí** se cancelan; 22 horas, no — son dos pruebas que ya existen
-- [ ] Quitar la marca de su prueba · suite **71 en verde, 0 marcadas**
-- [ ] Evidencia en `HALLAZGOS.md` · commit de comportamiento
 
 ---
 
