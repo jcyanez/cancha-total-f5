@@ -144,6 +144,7 @@ Agrupado por recorrido. Fuente: **Sistema actual**, salvo donde se indique otra 
 - **PANT-13** — Van ordenadas por **cancha** y, dentro de cada cancha, por **hora**.
 - **PANT-14** — Las canceladas se distinguen de las activas y **no ofrecen cancelar**.
 - **PANT-15** — Un día sin reservas muestra un **aviso de que no hay ninguna**, no una lista vacía.
+- **PANT-16** — Lo que escribe el cliente —su nombre, su teléfono— se muestra **como texto**. Si trae algo que parece una etiqueta, se ve escrito tal cual y **no se interpreta**. *(Decisión del cliente, §7.6)*
 
 ## 5. Qué queda registrado
 
@@ -207,6 +208,13 @@ el quinto es una ambigüedad de su descripción, resuelta por decisión del clie
 - **Administradora:** «Se puede cancelar hasta 24 horas antes de la hora del partido. Con menos de 24 horas no hay cancelación y se cobra completo: si el partido es mañana a las 8 de la mañana y ya son las 11 de la noche, no hay marcha atrás.»
 - **Sistema actual:** cancela cuando la **fecha** del partido es posterior a hoy, sin mirar la hora del partido ni la hora actual. Con ese criterio, el ejemplo de la administradora **sí** se cancelaría, y una reserva de hoy a las 21:00 consultada a las 8:00 de la mañana **no** se cancelaría.
 - **Queda:** la administradora. **24 horas antes de la hora de inicio.**
+
+### 7.6 Qué pasa con lo que escribe el cliente al mostrarlo — `PANT-16`
+
+- **Administradora:** **no habla del tema.** Por la regla de este documento, donde ella no dice nada manda el sistema actual, así que el comportamiento de hoy quedaría declarado correcto.
+- **Sistema actual:** mete el nombre y el teléfono en la pantalla **sin escaparlos**. Un cliente llamado `<b>Ana</b>` sale en negrita; uno cuyo nombre trae una etiqueta de guion sale ejecutándose en el navegador de quien mire la lista del día.
+- **Queda:** **decisión del cliente** — se muestra como texto. Se aparta del comportamiento actual **a propósito**, porque el silencio de la administradora acá no es una elección de negocio: nadie le preguntó si quería que el nombre de un cliente pudiera ejecutar código en la computadora de la recepción.
+- **Por qué se declara aparte:** es la única condición de este documento que **contradice al sistema actual sin que la administradora lo haya pedido**. Se deja escrita, con su fuente, para que se vea que es una decisión tomada y no un descuido.
 
 ## 8. Decisiones que este documento no toma
 

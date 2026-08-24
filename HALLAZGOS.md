@@ -8,9 +8,9 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 71 pruebas — **las 71 pasan, ninguna marcada**, `verificar.sh` sale en 0.
-Cerrados los cinco hallazgos de comportamiento. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`.
-En parte: `E-4`. Pagados también: `E-7`, `E-8`, `E-9`. Sigue abierto: `E-10`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+**Estado:** 72 pruebas — 71 pasan, 1 marcada como fallo esperado, `verificar.sh` sale en 0.
+Cerrados: `C-1` a `C-5`. Abierto: `C-6`. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`, `E-7`,
+`E-8`, `E-9`. En parte: `E-4`. Reclasificado: `E-10` → `C-6`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -39,6 +39,7 @@ El código hace algo que contradice la especificación.
 | **C-3** | `RN-24` — Las reservas **canceladas no cuentan** para volverse cliente frecuente | El conteo del mes incluye las canceladas, así que un cliente que apartó y canceló llega al descuento sin haber jugado | `pruebas/cliente-frecuente.test.js` → *una reserva cancelada no cuenta para volverse cliente frecuente* | **Cerrado** |
 | **C-4** | `RN-23` — «El mismo mes» es el mes en que **se registra** la reserva | El conteo se hace sobre el mes de la **fecha del partido**, e ignora la fecha de registro que la propia base ya guarda | `pruebas/cliente-frecuente.test.js` → *el mes que cuenta es aquel en que se hizo la reserva…*, *las reservas hechas en meses anteriores no cuentan…* | **Cerrado** |
 | **C-5** | `RN-27`, `RN-28` — Se cancela hasta **24 horas antes de la hora de inicio**; con menos, no hay cancelación | Compara solo **fechas de calendario**: cancela cualquier reserva de un día posterior a hoy, sin mirar la hora. El caso que describió la administradora —partido mañana a las 8:00, faltando 22 horas— se cancela | `pruebas/cancelacion.test.js` → *una reserva a menos de 24 horas no se cancela* | **Cerrado** |
+| **C-6** | `PANT-16` — Lo que escribe el cliente se muestra **como texto**, no se interpreta | El nombre y el teléfono se meten en la pantalla sin escapar: un cliente llamado `<b>Ana</b>` sale en negrita, y uno cuyo nombre trae una etiqueta de guion ejecuta código en el navegador de quien abra la lista del día | `pruebas/pantallas.test.js` → *el nombre del cliente se muestra como texto…* | Abierto |
 
 **Un mismo hallazgo, varias pruebas.** C-1 tiene tres porque la tarifa está calculada en tres
 lugares distintos (ver `E-5`): arreglarla en uno solo deja los otros dos en rojo. C-2 tiene cuatro
@@ -62,9 +63,16 @@ un arreglo de comportamiento. **Ninguno se corrigió**: se anotan para decidir c
 | **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | **Pagado** |
 | **E-8** | Código presente pero inactivo: la función de feriados que nadie llama, y las tarifas de temporada alta comentadas | La especificación declara que **no existen** (`FUERA-8`, `FUERA-9`). El código sugiere lo contrario a quien lo lea | **Pagado** |
 | **E-9** | El esquema de la tabla `reservas` está escrito **dos veces**: en `server.js` y en `datos.js` | Un cambio de esquema aplicado en uno solo deja los dos archivos discrepando en silencio | **Pagado** |
-| **E-10** | Los datos que escribe el usuario se interpolan en el HTML sin escapar | No lo delató una prueba: se vio al leer el código. El nombre del cliente y el teléfono viajan tal cual a la lista del día | Abierto |
+| **E-10** | Los datos que escribe el usuario se interpolan en el HTML sin escapar | No lo delató una prueba: se vio al leer el código. El nombre del cliente y el teléfono viajan tal cual a la lista del día | **Reclasificado como `C-6`** |
 
 ---
+
+**`E-10` cambió de clase.** Nació como deuda de estructura porque ninguna prueba lo delataba: se vio
+leyendo el código, y la especificación no hablaba del tema —así que, por la regla de este trabajo,
+el comportamiento actual quedaba declarado correcto—. Al ampliarse la especificación con `PANT-16`
+por decisión del cliente, el sistema pasó a **contradecir** una condición escrita: eso es un hallazgo
+de comportamiento. Vive ahora como `C-6`, con su prueba. El cambio de clase se hizo **primero en la
+especificación y después en el código**, nunca al revés.
 
 ## La señal de la suite
 

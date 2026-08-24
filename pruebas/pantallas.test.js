@@ -1,4 +1,4 @@
-// Pantallas — PANT-1 a PANT-15 de ESPECIFICACION.md
+// Pantallas — PANT-1 a PANT-16 de ESPECIFICACION.md
 //
 // NIVEL: integración. Razón: son recorridos de consulta completos; lo que se
 // comprueba es lo que la administradora ve al abrir la pantalla.
@@ -170,5 +170,29 @@ test('si el bloque ya está vendido se informa cuál es', async () => {
     assert.match(respuesta.html, /cancha 2/i);
     assert.match(respuesta.html, /2026-09-10/);
     assert.match(respuesta.html, /19:00/);
+  });
+});
+
+test('el nombre del cliente se muestra como texto, no como HTML', { todo: 'HALLAZGO C-6' }, async () => {
+  // NIVEL: integración. Razón: lo que se afirma es lo que llega al navegador de
+  // quien abre la lista del día, no cómo se arma por dentro.
+  //
+  // Falla si: los datos que escribe el cliente se meten en la pantalla sin
+  // escapar, y el navegador los interpreta como parte del documento (PANT-16).
+  await conSistema(async (sistema) => {
+    const fecha = '2026-09-10';
+    const nombreConEtiqueta = '<script>alert(1)</script>';
+
+    await sistema.reservar({ cancha: 1, fecha, hora: 10, cliente: nombreConEtiqueta, telefono: '88112233' });
+    const pantalla = await sistema.listaDelDia(fecha);
+
+    assert.ok(
+      !pantalla.includes(nombreConEtiqueta),
+      'el nombre entró a la pantalla como etiqueta, no como texto',
+    );
+    assert.ok(
+      pantalla.includes('&lt;script&gt;'),
+      'el nombre no aparece escrito tal cual lo tecleó el cliente',
+    );
   });
 });
