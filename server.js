@@ -210,41 +210,27 @@ app.get('/', (req, res) => {
 });
 
 // GET /disponibilidad/cancha1 y /disponibilidad/cancha2 -------------------
-app.get('/disponibilidad/cancha1', (req, res) => {
+// Los dos son la misma pantalla con distinto número de cancha.
+function pantallaDeDisponibilidad(cancha, req, res) {
   const fecha = req.query.fecha || hoyISO();
   let filas = '';
   for (let hora = 8; hora <= 21; hora++) {
-    const libre = checkDisponible(1, fecha, hora);
+    const libre = checkDisponible(cancha, fecha, hora);
     filas += `<tr><td>${hora}:00</td><td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td></tr>`;
   }
   const contenido = `
-<h2>Disponibilidad Cancha 1 - ${fecha}</h2>
-<form method="get" action="/disponibilidad/cancha1">
+<h2>Disponibilidad Cancha ${cancha} - ${fecha}</h2>
+<form method="get" action="/disponibilidad/cancha${cancha}">
   <label>Fecha: <input type="date" name="fecha" value="${fecha}"></label>
   <button type="submit">Ver</button>
 </form>
 <table><tr><th>Hora</th><th>Estado</th></tr>${filas}</table>
 `;
-  res.send(layout('Cancha 1', contenido));
-});
+  res.send(layout(`Cancha ${cancha}`, contenido));
+}
 
-app.get('/disponibilidad/cancha2', (req, res) => {
-  const fecha = req.query.fecha || hoyISO();
-  let filas = '';
-  for (let hora = 8; hora <= 21; hora++) {
-    const libre = checkDisponible(2, fecha, hora);
-    filas += `<tr><td>${hora}:00</td><td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td></tr>`;
-  }
-  const contenido = `
-<h2>Disponibilidad Cancha 2 - ${fecha}</h2>
-<form method="get" action="/disponibilidad/cancha2">
-  <label>Fecha: <input type="date" name="fecha" value="${fecha}"></label>
-  <button type="submit">Ver</button>
-</form>
-<table><tr><th>Hora</th><th>Estado</th></tr>${filas}</table>
-`;
-  res.send(layout('Cancha 2', contenido));
-});
+app.get('/disponibilidad/cancha1', (req, res) => pantallaDeDisponibilidad(1, req, res));
+app.get('/disponibilidad/cancha2', (req, res) => pantallaDeDisponibilidad(2, req, res));
 
 // POST /reservas ------------------------------------------------------------
 app.post('/reservas', (req, res) => {
