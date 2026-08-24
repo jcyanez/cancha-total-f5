@@ -5,6 +5,36 @@ Permite ver la disponibilidad del día, registrar reservas y cancelarlas.
 
 Node + Express + SQLite, con las vistas renderizadas en el servidor.
 
+## La pantalla
+
+La grilla de disponibilidad cuenta por qué la tarifa cambia. A las 17:00 se encienden las luces y
+el bloque pasa de ₡15.000 a ₡20.000: por eso las horas con luz van sobre fondo cálido, llevan la
+marca de un foco, y una regla ámbar cruza la tabla exactamente donde se aprieta el interruptor.
+El precio deja de ser un número que sube sin explicación.
+
+```
+  HORA     ESTADO              TARIFA
+  16:00    ⊘ Libre            ₡15.000
+ ═══════════════════════════════════════  ← se encienden las luces
+  17:00 ⚲  ⊗ Ocupado          ₡20.000
+  18:00 ⚲  ⊘ Libre            ₡20.000
+```
+
+Lo demás que hay que saber para usarlo:
+
+- **Se puede usar desde un teléfono.** Las dos canchas se ven lado a lado cuando hay ancho y se
+  apilan cuando no. La lista del día, que tiene siete columnas, scrollea dentro de su propio
+  marco: la página nunca se corre de lado.
+- **Sigue el tema del sistema operativo**, claro u oscuro. No hay que elegir nada.
+- **El color nunca es la única señal.** Cada estado lleva su texto y su icono, así que se
+  distingue igual sin percibir el color y igual en una impresión en blanco y negro.
+- **Funciona sin internet.** No pide tipografías, iconos ni bibliotecas a ningún servidor: todo
+  viaja dentro de la página. Si el local se queda sin red, el sistema se ve igual.
+
+Las capturas de todas las pantallas —claro y oscuro, a 375 px y a pantalla completa— están en
+`Week5/capturas/interfaz/` del repositorio del curso:
+https://github.com/jcyanez/LEClaudeCode_JuanCa_Cenfotec
+
 ## Arrancar
 
 ```
@@ -79,3 +109,31 @@ verificar.sh   la puerta de calidad
 pruebas/       la suite
   soporte/     lo que las pruebas usan para hablar con el sistema
 ```
+
+No hay build, ni bundler, ni carpeta de archivos estáticos: el HTML se arma en el servidor y la
+hoja de estilo viaja dentro de él, en la constante `ESTILOS` de `server.js`. Está organizada en
+dos pisos: **primero los tokens** —un nombre por cada decisión de color, espacio, tipografía y
+forma, declarados una sola vez en `:root`— y después las reglas, que solo consumen tokens.
+Ningún color literal aparece fuera de ese bloque, y el tema oscuro se limita a redefinir los
+mismos nombres. Para cambiar el verde de la marca en todo el sistema se toca una línea.
+
+Los cuatro iconos —`check-circle`, `x-circle`, `warning` y `lightbulb`, del vocabulario de
+Phosphor— van dibujados como `data:` URI y se pintan con `mask`, así que heredan el color del
+texto: una sola definición sirve para todos los estados y ninguno se pide a un servidor externo.
+
+### Una advertencia para quien toque las vistas
+
+Quince pruebas leen el HTML con expresiones regulares que exigen etiquetas pegadas. En concreto:
+
+| No tocar | Por qué |
+|---|---|
+| `<td>8:00</td><td …>Libre</td>` | El estado tiene que ser texto directo del `<td>`, sin nada anidado adentro. |
+| `<td>₡15.000</td>` | La celda de la tarifa no admite atributos. |
+| `<li>texto</li>` | Cualquier etiqueta dentro del `<li>` deja el conteo de errores en cero. |
+| `<h2>` | Sin atributos: dos pruebas parten el HTML por esa cadena literal. |
+| `<option value="8">` | Sin atributos extra. |
+| `<select name="hora"` | `name` va primero; poner `id` antes rompe el regex. |
+
+Por eso las píldoras, los iconos y la regla de la luz están hechos **con CSS sobre el markup que
+ya existía**, y no envolviendo texto en etiquetas nuevas. Si algo hace falta cambiar ahí, el
+camino es hablarlo antes: aflojar un helper de pruebas es una decisión, no un descuido.
