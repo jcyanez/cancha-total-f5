@@ -58,6 +58,21 @@ function tarifaDelBloque(hora) {
   return hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? PRECIO_CON_LUZ : PRECIO_DIURNO;
 }
 
+// Cliente frecuente (RN-21, RN-25): cuatro o más reservas en el mismo mes,
+// contando la que se está haciendo, pagan 10% menos.
+const RESERVAS_PARA_SER_FRECUENTE = 4;
+const DESCUENTO_DE_FRECUENTE = 0.1;
+
+// `reservasDelMes` son las que el cliente ya lleva; la que está haciendo no
+// viene contada.
+function esClienteFrecuente(reservasDelMes) {
+  return reservasDelMes + 1 >= RESERVAS_PARA_SER_FRECUENTE;
+}
+
+function precioConDescuento(precio, reservasDelMes) {
+  return esClienteFrecuente(reservasDelMes) ? precio * (1 - DESCUENTO_DE_FRECUENTE) : precio;
+}
+
 // Plazo de cancelación (RN-27, RN-28): se mide en horas hasta el inicio del
 // partido, no en días de calendario.
 const HORAS_DE_PLAZO_PARA_CANCELAR = 24;
@@ -312,11 +327,8 @@ app.post('/reservas', (req, res) => {
        AND estado = 'activa'`
   ).get(telefono, mesDeRegistro);
 
-  const totalConEstaReserva = conteoMes.total + 1;
-  const aplicaDescuento = totalConEstaReserva >= 4;
-  if (aplicaDescuento) {
-    precio = precio * 0.9;
-  }
+  const aplicaDescuento = esClienteFrecuente(conteoMes.total);
+  precio = precioConDescuento(precio, conteoMes.total);
 
   // Paso 6: guardar la reserva.
   const id = crearReserva({ cancha, fecha, hora, cliente, telefono, precio });
@@ -398,4 +410,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, ahora, tarifaDelBloque, horasHastaElPartido };
+module.exports = { app, ahora, tarifaDelBloque, precioConDescuento, horasHastaElPartido };
