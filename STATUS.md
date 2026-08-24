@@ -1,86 +1,76 @@
-# Lo que queda pendiente
+# Estado del trabajo
 
-Checklist vivo del Caso Práctico 5. **Solo contiene trabajo sin hacer**: cuando un paso se cierra,
-se borra de acá y su evidencia queda en el documento que le corresponde.
+**No queda nada pendiente.** El encargo está terminado: la red puesta, los hallazgos por escrito y
+cerrados, y la deuda de estructura pagada.
 
 **Documentos:** [ESPECIFICACION.md](ESPECIFICACION.md) · [HALLAZGOS.md](HALLAZGOS.md) · [README.md](README.md)
 
-**Entrega:** martes 25 de agosto de 2026, al inicio de la Sesión 6.
-
 ---
 
-## Dónde estamos parados
+## Marcador final
 
 | | |
 |---|---|
-| **Pruebas** | 72 — **las 72 pasan, ninguna marcada** |
-| **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
+| **Pruebas** | 87 — **las 87 pasan, ninguna marcada como fallo esperado** |
+| **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado y comprobado |
 | **Hallazgos de comportamiento** | 6 · **los seis cerrados** |
-| **Hallazgos de estructura** | 10 · **todas pagadas** — E-4 en parte, E-10 reclasificada como C-6 |
-| **Commits propios** | 17 encima de `65ce4b4` |
+| **Hallazgos de estructura** | 10 · **las diez pagadas** (`E-4` en parte, `E-10` reclasificada como `C-6`) |
+| **Commits propios** | 20 encima del commit del proveedor `65ce4b4` |
 
-El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
-voluntaria del encargo.
-
----
-
-## Las cuatro decisiones que fijan este plan
-
-Tomadas con el cliente antes de escribir una línea. Quedan acá porque explican **por qué** el plan
-es este y no otro.
-
-1. **Se pagan las nueve deudas de estructura**, incluida la tríada de testabilidad `E-1`/`E-2`/`E-3`.
-   Va más allá del criterio del curso —*pagar solo la deuda que está en el camino*—, así que cada
-   commit de estructura tiene que **demostrar** que no cambió nada: misma cuenta de la suite antes y
-   después, y **ningún archivo de prueba tocado**. El andamiaje de `pruebas/soporte/` sí puede
-   cambiar; las pruebas, no.
-2. **Un solo reloj en la aplicación.** Hoy hay dos: `hoyISO()` lee la hora local de Node y
-   `creada_en` la escribe SQLite en UTC. En Costa Rica eso graba una reserva del 31 de agosto a las
-   18:30 como registrada en setiembre. Se unifica **antes** de que C-4 empiece a usar esa columna.
-3. **E-10 se cierra ampliando la especificación.** Escapar el HTML cambia lo que sale por pantalla:
-   es comportamiento, no estructura. Primero se agrega la condición a `ESPECIFICACION.md` con su
-   fuente declarada, después su prueba en rojo, y recién entonces el arreglo.
-4. **Se trabaja de corrido**, pero cada commit queda con su evidencia para poder auditar el
-   historial al final.
-
-## Reglas de juego
-
-- **Ningún commit mezcla estructura con comportamiento.**
-- **En un commit de estructura la suite da exactamente lo mismo antes y después.**
-- **Un hallazgo se cierra haciendo pasar su prueba sin tocarla.**
-- **No se agregan funciones nuevas** ni se cambia el stack. SQLite se queda.
-- **`verificar.sh` sale en 0 al entregar.**
+Cada cierre tiene su evidencia en [HALLAZGOS.md](HALLAZGOS.md): qué commit lo cerró, qué decía la
+suite antes y después, y que su prueba pasa **sin haber sido modificada**.
 
 ---
 
-## Marcador esperado, tanda por tanda
+## Lo que se hizo, en orden
 
-Sirve de contrato: si una tanda no deja el marcador que dice acá, algo salió distinto de lo previsto
-y hay que parar a mirarlo antes de seguir.
+El historial se lee de abajo hacia arriba y cuenta la historia completa. Ningún commit mezcla
+estructura con comportamiento.
 
-| Tanda | Qué cierra | Commits | Verde | Marcadas |
-|---|---|---|---|---|
-| — | *estado actual* | — | 72 | 0 |
-| **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
+| # | Commit | Clase |
+|---|---|---|
+| 1 | La red de seguridad y la puerta, antes de tocar el código | red |
+| 2 | Una sola función de tarifa, en vez de tres | estructura · `E-5` |
+| 3 | La luz enciende a las 17:00, no a las 18:00 | comportamiento · `C-1` |
+| 4 | Anotar el estado tras la primera tanda | documentación |
+| 5 | El teléfono es obligatorio y son ocho dígitos | comportamiento · `C-2` |
+| 6 | Las canceladas no cuentan para el cliente frecuente | comportamiento · `C-3` |
+| 7 | El sistema se puede arrancar desde afuera | estructura · `E-1` `E-2` `E-3` |
+| 8 | Un solo reloj, y la fecha de registro sale de él | estructura · `E-6` |
+| 9 | El andamiaje de pruebas deja de parchear el sistema | estructura |
+| 10 | La siembra de pruebas usa el reloj de las pruebas | estructura · `E-4` |
+| 11 | El mes que cuenta es el del registro | comportamiento · `C-4` |
+| 12 | El plazo se mide contra la hora del partido | comportamiento · `C-5` |
+| 13 | Se borra el código muerto | estructura · `E-8` |
+| 14 | Una sola pantalla de disponibilidad por cancha | estructura · `E-7` |
+| 15 | El esquema deja de estar escrito dos veces | estructura · `E-9` |
+| 16 | La especificación se pronuncia sobre el HTML escapado | red · `C-6` |
+| 17 | Lo que escribe el cliente se muestra como texto | comportamiento · `C-6` |
+| 18 | La regla del descuento sale del manejador | estructura |
+| 19 | Las pruebas de unidad que `E-1` tenía trabadas | red |
+| 20 | El cierre: README y marcador final | documentación |
 
 ---
 
-## Tanda 9 · las pruebas unitarias que E-1 destrabó
+## Las reglas que se respetaron
 
-Sin esto, pagar `E-1` queda a medias: se pagó para poder probar en unidad y no se probó.
+Se dejan escritas porque son la parte del trabajo que no se ve en el resultado, solo en el camino.
 
-- [ ] Pruebas **de unidad** con casos borde para la tarifa, el descuento de frecuente y el plazo de cancelación
-- [ ] Cada una declara su nivel y qué cambio en el código la haría fallar
-- [ ] Las de integración que ya existen **se quedan**: cubren el recorrido del negocio, que es otra cosa
+- **Ningún commit mezcla estructura con comportamiento.** En los ocho commits de estructura la suite
+  dio **exactamente lo mismo antes y después**, y el diff no tocó ningún archivo de prueba.
+- **Ningún hallazgo se cerró tocando su prueba.** En cada cierre, el diff sobre el archivo de pruebas
+  es una línea por prueba: la marca de fallo esperado. El nombre, el comentario de qué la haría
+  fallar y la aserción quedaron letra por letra como estaban.
+- **El valor esperado nunca salió de correr el código.** Salió de `ESPECIFICACION.md`. Y cuando la
+  especificación no hablaba de algo —el HTML escapado— se la amplió **primero**, con su fuente
+  declarada, y se vio la prueba fallar antes de mover una línea del sistema.
+- **La señal de la suite se comprobó rompiendo el código a propósito**, y revirtiendo cada mutación
+  enseguida.
+- **No se agregaron funciones nuevas** ni se cambió el stack. SQLite se queda.
 
----
+## Lo único que quedó a medias, y por qué
 
-## Cierre de la entrega
-
-- [ ] `README.md` actualizado: cómo arrancar, cómo recrear los datos, cómo correr la verificación y qué significan sus códigos de salida
-- [ ] `HALLAZGOS.md` con la evidencia de cierre de cada hallazgo cerrado y cada deuda pagada
-- [ ] Este `STATUS.md` con el marcador final
-- [ ] `./verificar.sh` sale en 0 y la aplicación arranca según el `README.md`
-- [ ] Revisado commit por commit que ninguno mezcla estructura con comportamiento
-- [ ] Revisado que ninguna prueba fue modificada para hacer pasar un hallazgo
-- [ ] `git push` a `origin/main` y confirmación de que quedó sincronizado
+`E-4` está pagada **en parte**. El sistema ya permite registrar con otra fecha de registro, que es lo
+que el hallazgo reclamaba; pero la siembra de las pruebas sigue escribiendo en la tabla en vez de
+pasar por el camino del negocio. Hacerlo bien la volvería asíncrona y obligaría a **modificar las
+pruebas**, y eso no se hace. Queda anotado como lo que es: media deuda, declarada y no disimulada.
