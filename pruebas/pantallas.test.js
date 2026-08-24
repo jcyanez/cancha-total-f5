@@ -173,7 +173,7 @@ test('si el bloque ya está vendido se informa cuál es', async () => {
   });
 });
 
-test('el nombre del cliente se muestra como texto, no como HTML', { todo: 'HALLAZGO C-6' }, async () => {
+test('el nombre del cliente se muestra como texto, no como HTML', async () => {
   // NIVEL: integración. Razón: lo que se afirma es lo que llega al navegador de
   // quien abre la lista del día, no cómo se arma por dentro.
   //

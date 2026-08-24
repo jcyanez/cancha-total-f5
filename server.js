@@ -27,6 +27,24 @@ const db = new Database(RUTA_BASE);
 
 crearTablaDeReservas(db);
 
+// Lo que escribe el cliente se muestra como texto, nunca se interpreta como
+// parte del documento (PANT-16).
+function escaparHTML(valor) {
+  return String(valor)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Dentro de un bloque <script> las entidades HTML no protegen: el navegador no
+// las decodifica ahí. El valor va como literal de JavaScript, y se le esconde
+// el < para que no pueda cerrar el bloque.
+function escaparParaGuion(valor) {
+  return JSON.stringify(String(valor)).replace(/</g, '\\u003C');
+}
+
 function formatColones(monto) {
   return '₡' + Math.round(monto).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
@@ -149,9 +167,9 @@ app.get('/', (req, res) => {
   }
 
   const contenido = `
-<h2>Disponibilidad - ${fecha}</h2>
+<h2>Disponibilidad - ${escaparHTML(fecha)}</h2>
 <form method="get" action="/">
-  <label>Fecha: <input type="date" name="fecha" value="${fecha}"></label>
+  <label>Fecha: <input type="date" name="fecha" value="${escaparHTML(fecha)}"></label>
   <button type="submit">Ver</button>
 </form>
 
@@ -163,7 +181,7 @@ app.get('/', (req, res) => {
 
 <h2>Nueva reserva</h2>
 <form class="reserva" method="post" action="/reservas">
-  <input type="hidden" name="fecha" value="${fecha}">
+  <input type="hidden" name="fecha" value="${escaparHTML(fecha)}">
   <label>Cancha:
     <select name="cancha">
       <option value="1">Cancha 1</option>
@@ -181,12 +199,12 @@ app.get('/', (req, res) => {
   <button type="submit">Reservar</button>
 </form>
 
-<p><a href="/dia/${fecha}">Ver lista de reservas del ${fecha}</a></p>
+<p><a href="/dia/${escaparHTML(fecha)}">Ver lista de reservas del ${escaparHTML(fecha)}</a></p>
 
 <script>
   function actualizarPrecio() {
     var hora = document.getElementById('hora').value;
-    fetch('/api/cotizar?fecha=${fecha}&hora=' + hora)
+    fetch(${escaparParaGuion('/api/cotizar?fecha=' + fecha + '&hora=')} + hora)
       .then(function (r) { return r.json(); })
       .then(function (d) { document.getElementById('precioEstimado').textContent = d.precioFormateado; });
   }
@@ -208,9 +226,9 @@ function pantallaDeDisponibilidad(cancha, req, res) {
     filas += `<tr><td>${hora}:00</td><td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td></tr>`;
   }
   const contenido = `
-<h2>Disponibilidad Cancha ${cancha} - ${fecha}</h2>
+<h2>Disponibilidad Cancha ${cancha} - ${escaparHTML(fecha)}</h2>
 <form method="get" action="/disponibilidad/cancha${cancha}">
-  <label>Fecha: <input type="date" name="fecha" value="${fecha}"></label>
+  <label>Fecha: <input type="date" name="fecha" value="${escaparHTML(fecha)}"></label>
   <button type="submit">Ver</button>
 </form>
 <table><tr><th>Hora</th><th>Estado</th></tr>${filas}</table>
@@ -275,7 +293,7 @@ app.post('/reservas', (req, res) => {
   // Paso 3: verificar que el bloque siga libre.
   const disponible = checkDisponible(cancha, fecha, hora);
   if (!disponible) {
-    const contenidoOcupado = `<div class="error">Ese bloque ya está ocupado para la cancha ${cancha} el ${fecha} a las ${hora}:00.</div><p><a href="/">Volver</a></p>`;
+    const contenidoOcupado = `<div class="error">Ese bloque ya está ocupado para la cancha ${cancha} el ${escaparHTML(fecha)} a las ${hora}:00.</div><p><a href="/">Volver</a></p>`;
     return res.send(layout('Error', contenidoOcupado));
   }
 
@@ -308,10 +326,10 @@ app.post('/reservas', (req, res) => {
   const contenido = `
 <div class="ok">
   <p>Reserva #${id} creada.</p>
-  <p>Cancha ${cancha}, ${fecha} a las ${hora}:00, cliente ${cliente}.</p>
+  <p>Cancha ${cancha}, ${escaparHTML(fecha)} a las ${hora}:00, cliente ${escaparHTML(cliente)}.</p>
   <p>Precio: ${formatColones(precio)}${notaDescuento}</p>
 </div>
-<p><a href="/dia/${fecha}">Ver lista del día</a> | <a href="/">Volver</a></p>
+<p><a href="/dia/${escaparHTML(fecha)}">Ver lista del día</a> | <a href="/">Volver</a></p>
 `;
   res.send(layout('Reserva creada', contenido));
 });
@@ -347,16 +365,16 @@ app.get('/dia/:fecha', (req, res) => {
     const botonCancelar = r.estado === 'activa'
       ? `<form method="post" action="/reservas/${r.id}/cancelar" style="display:inline"><button type="submit">Cancelar</button></form>`
       : '-';
-    return `<tr class="${claseFila}"><td>${r.hora}:00</td><td>Cancha ${r.cancha}</td><td>${r.cliente}</td><td>${r.telefono || ''}</td><td>${formatColones(r.precio)}</td><td>${r.estado}</td><td>${botonCancelar}</td></tr>`;
+    return `<tr class="${claseFila}"><td>${r.hora}:00</td><td>Cancha ${r.cancha}</td><td>${escaparHTML(r.cliente)}</td><td>${escaparHTML(r.telefono || '')}</td><td>${formatColones(r.precio)}</td><td>${r.estado}</td><td>${botonCancelar}</td></tr>`;
   }).join('');
 
   const contenido = `
-<h2>Reservas del ${fecha}</h2>
+<h2>Reservas del ${escaparHTML(fecha)}</h2>
 <table>
   <tr><th>Hora</th><th>Cancha</th><th>Cliente</th><th>Teléfono</th><th>Precio</th><th>Estado</th><th></th></tr>
   ${filas || '<tr><td colspan="7">No hay reservas para esta fecha.</td></tr>'}
 </table>
-<p><a href="/?fecha=${fecha}">Volver a disponibilidad</a></p>
+<p><a href="/?fecha=${escaparHTML(fecha)}">Volver a disponibilidad</a></p>
 `;
   res.send(layout('Reservas del día', contenido));
 });

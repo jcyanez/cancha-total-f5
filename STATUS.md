@@ -13,11 +13,11 @@ se borra de acá y su evidencia queda en el documento que le corresponde.
 
 | | |
 |---|---|
-| **Pruebas** | 71 — **las 71 pasan, ninguna marcada** |
+| **Pruebas** | 72 — **las 72 pasan, ninguna marcada** |
 | **Puerta** | `./verificar.sh` sale en **0** · hook `Stop` instalado |
-| **Hallazgos de comportamiento** | 5 · **los cinco cerrados** |
-| **Hallazgos de estructura** | 10 · 5 pagados y 1 en parte (E-4) · **4 abiertos**: E-7, E-8, E-9, E-10 |
-| **Commits propios** | 12 encima de `65ce4b4` |
+| **Hallazgos de comportamiento** | 6 · **los seis cerrados** |
+| **Hallazgos de estructura** | 10 · **todas pagadas** — E-4 en parte, E-10 reclasificada como C-6 |
+| **Commits propios** | 17 encima de `65ce4b4` |
 
 El mínimo que exige la consigna **ya está cumplido** desde la Tanda 1. Todo lo que sigue es mejora
 voluntaria del encargo.
@@ -60,36 +60,10 @@ y hay que parar a mirarlo antes de seguir.
 
 | Tanda | Qué cierra | Commits | Verde | Marcadas |
 |---|---|---|---|---|
-| — | *estado actual* | — | 71 | 0 |
-| **7** | E-7 E-8 E-9 limpieza | 3 estructura | 71 | 0 |
-| **8** | E-10 → C-6 HTML escapado | 1 de red + 1 comportamiento | 72 | 0 |
+| — | *estado actual* | — | 72 | 0 |
 | **9** | pruebas unitarias que destrabó E-1 | 1 de red | 72+N | 0 |
 
 ---
-
-## Tanda 7 · E-7 E-8 E-9 — la limpieza que quedaba
-
-Tres commits de estructura. La suite da lo mismo en los tres: **71 en verde, 0 marcadas**.
-
-- [ ] `E-7` — los dos manejadores de disponibilidad por cancha dejan de ser copia literal uno del otro
-- [ ] `E-8` — se borra el código muerto: la función de feriados y las tarifas de temporada alta comentadas. La especificación ya declara que no existen (`FUERA-8`, `FUERA-9`)
-- [ ] `E-9` — el esquema de la tabla deja de estar escrito dos veces; `server.js` y `datos.js` leen el mismo
-
-## Tanda 8 · E-10 → C-6 — el HTML sin escapar
-
-Cambia de clase: deja de ser deuda de estructura y pasa a ser hallazgo de comportamiento, porque la
-especificación empieza a hablar del tema. El cambio de clase se documenta en `HALLAZGOS.md`.
-
-**Commit 1 — la red primero**
-
-- [ ] Nueva condición en `ESPECIFICACION.md`: lo que escribe el cliente se muestra **como texto**, nunca se interpreta como HTML. Fuente declarada: decisión del cliente, con su apartado en la §7 igual que se hizo con `RN-23`
-- [ ] Su prueba: un cliente cuyo nombre lleva etiquetas no puede inyectar nada en la lista del día
-- [ ] Verla **fallar**, y dejarla marcada con el número del hallazgo · suite **71 en verde, 1 marcada**
-
-**Commit 2 — el arreglo**
-
-- [ ] Escapar los valores del usuario al armar el HTML
-- [ ] Quitar la marca · suite **72 en verde, 0 marcadas** · evidencia en `HALLAZGOS.md`
 
 ## Tanda 9 · las pruebas unitarias que E-1 destrabó
 
