@@ -8,7 +8,7 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 72 pruebas — **las 72 pasan, ninguna marcada**, `verificar.sh` sale en 0.
+**Estado:** 87 pruebas — **las 87 pasan, ninguna marcada**, `verificar.sh` sale en 0.
 **Los seis hallazgos de comportamiento, cerrados. Las diez deudas de estructura, pagadas** —`E-4`
 en parte, con su motivo escrito, y `E-10` reclasificada como `C-6`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
@@ -88,6 +88,17 @@ inmediatamente; `server.js` quedó idéntico al commit del proveedor.**
 | La cancelación deja de mirar la fecha | 2 |
 
 Sin mutar: 60 pasan, 0 fallan.
+
+**Las pruebas de unidad, comprobadas igual.** Al agregarlas se repitió el ejercicio sobre ellas
+solas, mutando dos constantes a la vez:
+
+| Mutación | Prueba que se cayó |
+|---|---|
+| Umbral de frecuente: `4` → `3` | *la tercera reserva del mes todavía no lleva descuento* |
+| Hora en que enciende la luz: `17` → `18` | *las 17:00 son el primer bloque con luz* |
+
+Cada mutación se cayó **en la prueba que le correspondía y en ninguna otra**, y se revirtió
+enseguida: `git diff` sobre `server.js` quedó vacío.
 
 ---
 
