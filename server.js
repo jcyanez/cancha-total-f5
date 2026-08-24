@@ -4,6 +4,7 @@
 const express = require('express');
 const Database = require('better-sqlite3');
 const path = require('path');
+const { crearTablaDeReservas } = require('./esquema.js');
 
 // Configuración. Los valores por omisión son los de siempre: el sistema sin
 // variables de entorno arranca exactamente como arrancaba. Existen para poder
@@ -24,19 +25,7 @@ app.use(express.json());
 
 const db = new Database(RUTA_BASE);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS reservas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cancha INTEGER NOT NULL,
-    fecha TEXT NOT NULL,
-    hora INTEGER NOT NULL,
-    cliente TEXT NOT NULL,
-    telefono TEXT,
-    precio INTEGER NOT NULL,
-    estado TEXT NOT NULL DEFAULT 'activa',
-    creada_en TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
+crearTablaDeReservas(db);
 
 function formatColones(monto) {
   return '₡' + Math.round(monto).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');

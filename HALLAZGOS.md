@@ -10,7 +10,7 @@ prueba misma. El avance se mide contando marcas quitadas.
 
 **Estado:** 71 pruebas — **las 71 pasan, ninguna marcada**, `verificar.sh` sale en 0.
 Cerrados los cinco hallazgos de comportamiento. Pagados: `E-1`, `E-2`, `E-3`, `E-5`, `E-6`.
-En parte: `E-4`. Siguen abiertos: `E-7`, `E-8`, `E-9`, `E-10`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
+En parte: `E-4`. Pagados también: `E-7`, `E-8`, `E-9`. Sigue abierto: `E-10`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
 ---
 
@@ -59,9 +59,9 @@ un arreglo de comportamiento. **Ninguno se corrigió**: se anotan para decidir c
 | **E-4** | No hay forma de registrar una reserva con una fecha de registro distinta de «ahora» | La prueba de `RN-23` que mira meses anteriores tiene que escribir directamente en la base, saltándose el camino del negocio y acoplándose al esquema | **Pagado en parte** |
 | **E-5** | **La tarifa se calcula en tres lugares**, con los mismos números repetidos: la grilla de disponibilidad, el registro de la reserva y la cotización previa. No hay una función de tarifa | Está **en el camino directo de C-1**: corregir la hora de la luz obliga a tocar los tres sitios y a acertar en los tres | **Pagado** |
 | **E-6** | La regla de las 24 horas lee el reloj del sistema desde adentro de la regla | Sin poder inyectar el instante, la prueba de `RN-27` dependería del día en que se corra. Hubo que congelar el reloj desde afuera. Está **en el camino de C-5** | **Pagado** |
-| **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | Abierto |
-| **E-8** | Código presente pero inactivo: la función de feriados que nadie llama, y las tarifas de temporada alta comentadas | La especificación declara que **no existen** (`FUERA-8`, `FUERA-9`). El código sugiere lo contrario a quien lo lea | Abierto |
-| **E-9** | El esquema de la tabla `reservas` está escrito **dos veces**: en `server.js` y en `datos.js` | Un cambio de esquema aplicado en uno solo deja los dos archivos discrepando en silencio | Abierto |
+| **E-7** | Los dos manejadores de disponibilidad por cancha son **copia literal** uno del otro, con el número de cancha cambiado | Cualquier arreglo en la disponibilidad hay que hacerlo dos veces | **Pagado** |
+| **E-8** | Código presente pero inactivo: la función de feriados que nadie llama, y las tarifas de temporada alta comentadas | La especificación declara que **no existen** (`FUERA-8`, `FUERA-9`). El código sugiere lo contrario a quien lo lea | **Pagado** |
+| **E-9** | El esquema de la tabla `reservas` está escrito **dos veces**: en `server.js` y en `datos.js` | Un cambio de esquema aplicado en uno solo deja los dos archivos discrepando en silencio | **Pagado** |
 | **E-10** | Los datos que escribe el usuario se interpolan en el HTML sin escapar | No lo delató una prueba: se vio al leer el código. El nombre del cliente y el teléfono viajan tal cual a la lista del día | Abierto |
 
 ---
@@ -293,3 +293,27 @@ Son dos pruebas distintas y las dos están en verde.
 
 **La suite antes y después:** de 70 en verde y 1 marcada, a **71 en verde y ninguna marcada**, 0
 fallos. Con el arreglo puesto y antes de quitar la marca, seguía dando 70 y 0 fallos.
+
+---
+
+### E-7, E-8, E-9 — la limpieza que quedaba · **pagados**
+
+Tres commits de **estructura**, uno por deuda. La suite da **71 en verde, 0 marcadas, 0 fallos**
+en los tres, igual que antes de empezar.
+
+**`E-8` — el código muerto.** Una función de feriados que no llamaba nadie y un bloque de tarifas
+de temporada alta comentado con un «no borrar por si se retoma en diciembre». Los dos estaban
+declarados muertos por su propio comentario, y la especificación ya dice que no existen (`FUERA-8`,
+`FUERA-9`). Si alguna vez se retoma la idea, está en el historial: para eso sirve git.
+
+**`E-7` — las dos pantallas de disponibilidad.** Eran copia literal una de otra, con el número de
+cancha cambiado en cinco lugares. Ahora son una función con el número como parámetro y dos rutas de
+una línea.
+
+  *No hace falta creer que el HTML no cambió:* se guardó el de las dos pantallas antes del cambio
+  y se comparó con el de después. **Idéntico byte a byte** en las dos.
+
+**`E-9` — el esquema escrito dos veces.** `server.js` y `datos.js` declaraban cada uno su propio
+`CREATE TABLE reservas`. Ahora los dos llaman a `esquema.js`. Comprobado corriendo `npm run datos`:
+crea la misma tabla, con las mismas columnas y los mismos valores por omisión, y siembra sus 10
+reservas.

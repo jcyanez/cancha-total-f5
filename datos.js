@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { crearTablaDeReservas } = require('./esquema.js');
 
 const RUTA_DB = path.join(__dirname, 'reservas.db');
 
@@ -14,19 +15,7 @@ if (fs.existsSync(RUTA_DB)) {
 
 const db = new Database(RUTA_DB);
 
-db.exec(`
-  CREATE TABLE reservas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cancha INTEGER NOT NULL,
-    fecha TEXT NOT NULL,
-    hora INTEGER NOT NULL,
-    cliente TEXT NOT NULL,
-    telefono TEXT,
-    precio INTEGER NOT NULL,
-    estado TEXT NOT NULL DEFAULT 'activa',
-    creada_en TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
+crearTablaDeReservas(db);
 
 function fechaISO(offsetDias) {
   const d = new Date();
