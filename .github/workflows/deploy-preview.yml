@@ -66,18 +66,10 @@ jobs:
       - name: Instalar la CLI de Vercel
         run: npm install --global vercel@latest
 
-      # Mismo motivo que en deploy-production.yml: que el secreto exista no dice
-      # que sirva, y el error de la CLI tres pasos más adelante no nombra al
-      # secreto culpable.
-      - name: Comprobar que el token de Vercel sirva
-        run: |
-          if ! vercel whoami > respuesta.txt 2> error.txt; then
-            echo "::error title=VERCEL_TOKEN no sirve::La CLI de Vercel no pudo autenticarse. Un token de Vercel es alfanumérico de 24 caracteres, SIN guiones ni puntos: si el valor guardado tiene puntos, es un JWT (probablemente el de Turso). Creá uno nuevo en https://vercel.com/account/tokens y volvé a cargar el secreto."
-            sed -E 's/[A-Za-z0-9_.-]{20,}/***/g' error.txt
-            exit 1
-          fi
-          echo "Autenticado en Vercel como: $(cat respuesta.txt)"
-          rm -f respuesta.txt error.txt
+      # Mismo motivo que en deploy-production.yml: que un secreto exista no dice
+      # que sirva, y los errores de la CLI no nombran al culpable.
+      - name: Comprobar las credenciales de Vercel
+        run: ./herramientas/comprobar-vercel.sh
 
       - name: vercel pull (entorno preview)
         run: vercel pull --yes --environment=preview
