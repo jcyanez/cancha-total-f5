@@ -84,23 +84,46 @@ fi
 
 # --- 2. ¿El ORG_ID guardado es el dueño del proyecto? ---------------------
 
-if [ "${VERCEL_ORG_ID}" = "${cuenta}" ]; then
-  echo "VERCEL_ORG_ID coincide con la cuenta dueña del proyecto."
+if [ "${VERCEL_ORG_ID}" != "${cuenta}" ]; then
   echo ""
-  echo "Las tres credenciales de Vercel sirven."
-  exit 0
+  echo "El VERCEL_ORG_ID guardado NO es la cuenta dueña de este proyecto."
+  echo ""
+  echo "  El valor correcto, tal como lo espera la CLI, es:"
+  echo ""
+  echo "      ${cuenta}"
+  echo ""
+  echo "  Cargalo asi:"
+  echo ""
+  echo "      gh secret set VERCEL_ORG_ID --repo jcyanez/cancha-total-f5"
+  echo ""
+  echo "::error title=VERCEL_ORG_ID esta mal::El proyecto \"${nombre}\" pertenece a la cuenta ${cuenta}, y el ORG_ID guardado es otro. Ojo con la trampa: /v9/projects?teamId=<oid> devuelve 200 aunque el teamId sea equivocado, porque la API lo ignora cuando el token alcanza el proyecto de todos modos. El valor correcto esta impreso en el log de este paso."
+  exit 1
 fi
 
+echo "VERCEL_ORG_ID coincide con la cuenta dueña del proyecto."
+
+# --- 3. ¿El token alcanza la cuenta, o solo ese proyecto? -----------------
+#
+# Poder leer el proyecto no alcanza para desplegar. La CLI, antes de cualquier
+# cosa, resuelve la identidad del token: "Loading teams..." y despues los datos
+# del usuario. Un token creado con alcance de UN PROYECTO -el desplegable Scope
+# del panel ofrece la cuenta y tambien proyectos sueltos- puede leer ese
+# proyecto por la API y no tener identidad de usuario. La CLI entonces dice
+# "User not found" o "Could not retrieve Project Settings", que no se parecen en
+# nada a "el token tiene el alcance equivocado".
+#
+# Esta comprobacion es la que separa esos dos casos.
+
+estado_usuario=$(consultar "https://api.vercel.com/v2/user")
+
+if [ "${estado_usuario}" != "200" ]; then
+  echo ""
+  echo "::error title=El token de Vercel tiene el alcance equivocado::El token puede leer el proyecto \"${nombre}\", pero no tiene identidad de cuenta (/v2/user respondio ${estado_usuario}: $(detalle)). Eso pasa cuando el token se crea con alcance de UN PROYECTO en vez de la CUENTA, y la CLI no puede trabajar asi: falla con 'User not found' o 'Could not retrieve Project Settings'. Crea otro en https://vercel.com/account/tokens eligiendo en Scope la CUENTA (jcyanez), NO el proyecto cancha-total-f5, y volve a cargarlo: gh secret set VERCEL_TOKEN --repo jcyanez/cancha-total-f5"
+  exit 1
+fi
+
+usuario=$(jq -r '.user.username // .user.email // "?"' "${CUERPO}")
+echo "El token tiene alcance de cuenta. Usuario: ${usuario}"
 echo ""
-echo "El VERCEL_ORG_ID guardado NO es la cuenta dueña de este proyecto."
-echo ""
-echo "  El valor correcto, tal como lo espera la CLI, es:"
-echo ""
-echo "      ${cuenta}"
-echo ""
-echo "  Cargalo asi:"
-echo ""
-echo "      gh secret set VERCEL_ORG_ID --repo jcyanez/cancha-total-f5"
-echo ""
-echo "::error title=VERCEL_ORG_ID esta mal::El proyecto \"${nombre}\" pertenece a la cuenta ${cuenta}, y el ORG_ID guardado es otro. Ojo con la trampa: /v9/projects?teamId=<oid> devuelve 200 aunque el teamId sea equivocado, porque la API lo ignora cuando el token alcanza el proyecto de todos modos. La CLI si lo valida, y por eso falla despues con 'Could not retrieve Project Settings'. El valor correcto esta impreso en el log de este paso."
-exit 1
+echo "Las tres credenciales de Vercel sirven."
+exit 0
