@@ -71,6 +71,14 @@ jobs:
       - name: Comprobar las credenciales de Vercel
         run: ./herramientas/comprobar-vercel.sh
 
+      # Mismo motivo que en deploy-production.yml: la CLI 59 no toma el vínculo
+      # de las variables de entorno, y el archivo en disco sí lo entiende.
+      - name: Vincular el proyecto de Vercel
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "${VERCEL_ORG_ID}" "${VERCEL_PROJECT_ID}" > .vercel/project.json
+          echo "Proyecto vinculado en .vercel/project.json"
+
       - name: vercel pull (entorno preview)
         run: vercel pull --yes --environment=preview
 

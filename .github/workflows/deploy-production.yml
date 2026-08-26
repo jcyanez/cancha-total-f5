@@ -120,6 +120,20 @@ jobs:
       - name: Comprobar las credenciales de Vercel
         run: ./herramientas/comprobar-vercel.sh
 
+      # La CLI puede tomar VERCEL_ORG_ID y VERCEL_PROJECT_ID del entorno, pero
+      # que los honre depende de su versión: con la 59 no lo hizo, y `vercel
+      # pull` fallaba con "Could not retrieve Project Settings" aunque la API
+      # confirmara que esas mismas credenciales alcanzan el proyecto.
+      #
+      # El vínculo en disco es el contrato estable de la CLI —es lo que escribe
+      # `vercel link` y lo primero que mira— así que se escribe explícitamente
+      # en vez de depender de la otra vía. .vercel/ está en .gitignore.
+      - name: Vincular el proyecto de Vercel
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "${VERCEL_ORG_ID}" "${VERCEL_PROJECT_ID}" > .vercel/project.json
+          echo "Proyecto vinculado en .vercel/project.json"
+
       # 1) pull: baja la configuración del proyecto y las variables de entorno
       #    del entorno de producción, para que el build de acá sea el mismo que
       #    haría Vercel.
