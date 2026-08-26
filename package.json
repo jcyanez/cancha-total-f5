@@ -12,7 +12,8 @@
     "db:migrate": "node --env-file-if-exists=.env database/migrar.js",
     "db:seed": "node --env-file-if-exists=.env database/sembrar.js",
     "lint": "eslint .",
-    "test": "node --test \"pruebas/*.test.js\""
+    "test": "node --test \"pruebas/*.test.js\"",
+    "humo": "node --env-file-if-exists=.env herramientas/humo.js"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

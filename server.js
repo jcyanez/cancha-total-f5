@@ -1154,6 +1154,55 @@ app.get('/api/cotizar', (req, res) => {
   res.json({ precio, precioFormateado: formatColones(precio) });
 });
 
+// GET /api/health ---------------------------------------------------------
+// Comprobación de vida, para el pipeline y para verificar desde afuera que la
+// aplicación desplegada llega de verdad a su base de datos.
+//
+// La consulta es real —una lectura contra la tabla de reservas— porque el
+// sentido del endpoint es distinguir «la aplicación responde» de «la
+// aplicación habla con su base». Lo primero sin lo segundo no sirve de nada.
+//
+// Lo que sale de acá no incluye la URL de la base, ni el token, ni el mensaje
+// crudo del driver: solo qué clase de base es y si contestó.
+app.get('/api/health', async (req, res) => {
+  const clase = bd.descripcionDeLaBase();
+  try {
+    await bd.inicializar();
+    await bd.comprobarConexion();
+    const { total } = await bd.consultarUno('SELECT COUNT(*) AS total FROM reservas');
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      driver: 'libsql',
+      backend: clase,
+      reservas: total,
+    });
+  } catch (error) {
+    // 503: la aplicación está en pie pero no puede servir. Es lo que tiene que
+    // ver el pipeline para dar el despliegue por malo.
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      driver: 'libsql',
+      backend: clase,
+      // El nombre del problema, no su contenido: un mensaje de driver puede
+      // traer la URL de la base adentro.
+      motivo: error.code || error.name || 'error de conexión',
+    });
+  }
+});
+
+// Manejador de errores. Cualquier fallo asíncrono que suba por asincrono()
+// termina acá: el visitante ve una página, no una traza, y el detalle queda en
+// el registro del servidor.
+// eslint-disable-next-line no-unused-vars -- Express identifica al manejador de errores por sus cuatro parámetros
+app.use((error, req, res, siguiente) => {
+  console.error('[error]', error.message);
+  res.status(500).send(
+    layout('Error', '<div class="error" role="alert">El sistema no pudo atender el pedido. Intentá de nuevo.</div><p class="acciones"><a href="/">Volver</a></p>')
+  );
+});
+
 // Solo arranca si se lo invoca directamente. Cargar este archivo desde una
 // prueba ya no levanta un servidor ni ocupa un puerto, y en Vercel el que lo
 // carga es api/index.js, que exporta la aplicación sin escuchar en un puerto.
