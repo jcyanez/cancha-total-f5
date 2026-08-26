@@ -102,7 +102,13 @@ jobs:
       - name: Esperar a que el preview esté servido
         run: sleep 10
 
+      # Los despliegues de vista previa vienen protegidos: un pedido anónimo
+      # recibe la pantalla de autenticación de Vercel en vez de la aplicación.
+      # La llave de paso deja entrar a la automatización sin abrir el despliegue
+      # al público. Si no está configurada, el paso falla explicando cómo.
       - name: Interrogar el preview
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node herramientas/humo.js "${{ steps.desplegar.outputs.url }}"
 
       - name: Dejar la URL en el pull request

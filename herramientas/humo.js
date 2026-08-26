@@ -27,8 +27,32 @@ function anotar(nombre, pasa, detalle) {
   console.log(`${pasa ? 'OK   ' : 'FALLA'} ${nombre}${detalle ? `  ${detalle}` : ''}`);
 }
 
+// Los despliegues de vista previa de Vercel vienen protegidos: un pedido anónimo
+// recibe 200 con la pantalla de autenticación de Vercel en vez de la
+// aplicación. Vercel ofrece una llave para que la automatización pase igual, sin
+// tener que abrir el despliegue al público.
+//
+// https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection
+const LLAVE_DE_PASO = (process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '').trim();
+
+const CABECERAS = LLAVE_DE_PASO
+  ? { 'x-vercel-protection-bypass': LLAVE_DE_PASO, 'x-vercel-set-bypass-cookie': 'true' }
+  : {};
+
+// ¿Lo que volvió es la aplicación, o la pantalla de Vercel pidiendo credenciales?
+// Se reconoce por las marcas que pone su propio front-end.
+function esMuroDeVercel(texto) {
+  return (
+    /^\s*<!DOCTYPE html/i.test(texto) &&
+    /data-dpl-id|Authentication Required|_vercel\/sso|vercel\.com\/sso-api/i.test(texto)
+  );
+}
+
 async function pedir(base, camino, opciones = {}) {
-  const respuesta = await fetch(base + camino, opciones);
+  const respuesta = await fetch(base + camino, {
+    ...opciones,
+    headers: { ...CABECERAS, ...(opciones.headers || {}) },
+  });
   const texto = await respuesta.text();
   return { estado: respuesta.status, texto };
 }
@@ -38,6 +62,30 @@ async function pedir(base, camino, opciones = {}) {
 async function interrogar(base, { escribir }) {
   // 1. La salud: el endpoint que dice si la base contesta.
   const salud = await pedir(base, '/api/health');
+
+  // Antes de leer nada: ¿estamos hablando con la aplicación? Si el despliegue
+  // está protegido, todas las rutas contestan 200 con la pantalla de Vercel, y
+  // sin este corte la salida serían diez fallas seguidas y un error de JSON que
+  // no dice nada sobre la causa.
+  if (esMuroDeVercel(salud.texto)) {
+    throw new Error(
+      'El despliegue está detrás de la protección de Vercel: contesta con su pantalla ' +
+      'de autenticación, no con la aplicación. Hay dos caminos:\n\n' +
+      '  1. Darle a la automatización una llave de paso, que es lo que Vercel ofrece\n' +
+      '     para esto y deja el despliegue protegido para todo lo demás:\n' +
+      '       Vercel -> Project Settings -> Deployment Protection\n' +
+      '                 -> Protection Bypass for Automation -> generar la llave\n' +
+      '       gh secret set VERCEL_AUTOMATION_BYPASS_SECRET --repo jcyanez/cancha-total-f5\n\n' +
+      '  2. Apagar la protección de las vistas previas, que las deja públicas:\n' +
+      '       Vercel -> Project Settings -> Deployment Protection\n' +
+      '                 -> Vercel Authentication -> desactivar\n\n' +
+      (LLAVE_DE_PASO
+        ? '  Hay una llave configurada, pero Vercel no la aceptó: revisá que sea la\n' +
+          '  del proyecto correcto y que no se haya regenerado después de guardarla.'
+        : '  No hay ninguna llave configurada en este momento.')
+    );
+  }
+
   let cuerpo = {};
   try {
     cuerpo = JSON.parse(salud.texto);
