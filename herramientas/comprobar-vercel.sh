@@ -4,21 +4,27 @@
 #
 # Existe porque los errores de la CLI no nombran al culpable. Con un token
 # vencido, un ORG_ID de otra cuenta o un PROJECT_ID mal copiado, `vercel pull`
-# dice cosas como "User not found" o "Project not found" tres pasos despues de
-# la causa, y quien lo lee no sabe cual de los cinco secretos revisar.
+# dice cosas como "User not found" tres pasos despues de la causa, y quien lo
+# lee no sabe cual de los cinco secretos revisar.
 #
-# Dos llamadas alcanzan para distinguir los casos:
+# La pregunta que importa es una sola y es concreta: ¿con estas tres
+# credenciales se alcanza ESE proyecto? Eso es exactamente lo que necesita
+# `vercel pull`, asi que es lo primero que se pregunta. Si la respuesta es si,
+# no hace falta averiguar nada mas.
 #
-#   /v2/user                          -> ¿sirve el token, por si solo?
-#   /v9/projects/<pid>?teamId=<oid>    -> ¿la terna completa da con el proyecto?
+# Solo cuando falla se baja por una escalera para aislar la causa, y se baja
+# usando el mismo endpoint con menos datos cada vez. Preguntarle a un endpoint
+# distinto -/v2/user, por ejemplo- confunde "el token no sirve" con "ese
+# endpoint ya no existe", y devuelve un diagnostico equivocado con total
+# seguridad.
 #
-#   user 200 + proyecto 200  ->  las tres bien
-#   user != 200              ->  el token
-#   user 200 + proyecto 404  ->  el PROJECT_ID o el ORG_ID
-#   user 200 + proyecto 403  ->  el token no alcanza a esa cuenta
+#   /v9/projects/<pid>?teamId=<oid>   200 -> las tres bien
+#   /v9/projects?teamId=<oid>         200 -> token y ORG_ID bien, PROJECT_ID mal
+#   /v9/projects                      200 -> token bien, ORG_ID mal
+#   ninguna                               -> el token
 #
-# No imprime ningun valor: solo codigos de estado y el campo error.code de la
-# respuesta.
+# No imprime ningun valor de secreto: solo codigos de estado HTTP y el campo
+# error.code de la respuesta.
 
 set -uo pipefail
 
@@ -31,53 +37,69 @@ falta() {
 [ -n "${VERCEL_ORG_ID:-}" ]     || falta VERCEL_ORG_ID
 [ -n "${VERCEL_PROJECT_ID:-}" ] || falta VERCEL_PROJECT_ID
 
-codigo_de_error() {
-  jq -r '.error.code // .error.message // "sin detalle"' "$1" 2>/dev/null || echo "respuesta ilegible"
+CUERPO=respuesta.json
+
+# Devuelve el codigo HTTP y deja el cuerpo en $CUERPO.
+consultar() {
+  curl -sS -o "${CUERPO}" -w '%{http_code}' \
+    -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+    "$1"
 }
 
-# --- 1. El token, por si solo ----------------------------------------------
+detalle() {
+  local codigo
+  codigo=$(jq -r '.error.code // .error.message // empty' "${CUERPO}" 2>/dev/null)
+  if [ -n "${codigo}" ]; then
+    echo "${codigo}"
+    return
+  fi
+  # No siempre contesta JSON. Se muestra el cuerpo recortado, y con las cadenas
+  # largas tapadas por si trae algo que no deba salir en un log publico.
+  tr -d '\n' < "${CUERPO}" | sed -E 's/[A-Za-z0-9_.-]{24,}/***/g' | cut -c1-160
+}
 
-estado=$(curl -sS -o cuerpo.json -w '%{http_code}' \
-  -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-  https://api.vercel.com/v2/user)
+limpiar() { rm -f "${CUERPO}"; }
+trap limpiar EXIT
 
-if [ "${estado}" != "200" ]; then
-  echo "::error title=VERCEL_TOKEN no sirve::La API de Vercel respondio ${estado} a /v2/user ($(codigo_de_error cuerpo.json)). El token no existe, esta vencido, o fue borrado. Crea uno nuevo en https://vercel.com/account/tokens -- con Scope apuntando a tu cuenta y sin expiracion -- y volve a cargar el secreto."
-  rm -f cuerpo.json
+# --- La pregunta que importa ----------------------------------------------
+
+estado=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")
+
+if [ "${estado}" = "200" ]; then
+  nombre=$(jq -r '.name // "?"' "${CUERPO}")
+  echo "Las tres credenciales de Vercel sirven."
+  echo "  Proyecto alcanzado: \"${nombre}\""
+  exit 0
+fi
+
+echo "No se alcanzo el proyecto: la API respondio ${estado} ($(detalle))."
+echo "Bajando la escalera para aislar cual de las tres credenciales falla..."
+echo ""
+
+# --- Escalon 1: ¿el token ve la cuenta? ------------------------------------
+
+estado_cuenta=$(consultar "https://api.vercel.com/v9/projects?teamId=${VERCEL_ORG_ID}&limit=1")
+echo "  con token + ORG_ID:  ${estado_cuenta}"
+
+if [ "${estado_cuenta}" = "200" ]; then
+  echo ""
+  echo "::error title=VERCEL_PROJECT_ID esta mal::El token y el ORG_ID sirven -la API lista los proyectos de esa cuenta- pero el PROJECT_ID no corresponde a ninguno. Copialo de Project Settings -> General -> Project ID: empieza con prj_ y NO es el nombre del proyecto."
   exit 1
 fi
 
-usuario=$(jq -r '.user.username // .user.email // "?"' cuerpo.json)
-echo "1. VERCEL_TOKEN: valido. Cuenta: ${usuario}"
+# --- Escalon 2: ¿el token sirve, sin decirle a que cuenta? -----------------
 
-# --- 2. La terna completa contra el proyecto -------------------------------
+estado_token=$(consultar "https://api.vercel.com/v9/projects?limit=1")
+echo "  con token solo:      ${estado_token}"
 
-estado=$(curl -sS -o cuerpo.json -w '%{http_code}' \
-  -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-  "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")
+if [ "${estado_token}" = "200" ]; then
+  echo ""
+  echo "::error title=VERCEL_ORG_ID esta mal::El token sirve, pero con ese ORG_ID la API no responde (${estado_cuenta}). El ORG_ID es el Team ID de la cuenta donde vive el proyecto: clic en el nombre de la cuenta arriba a la izquierda -> Settings -> General -> Team ID. Empieza con team_."
+  exit 1
+fi
 
-case "${estado}" in
-  200)
-    nombre=$(jq -r '.name // "?"' cuerpo.json)
-    echo "2. VERCEL_ORG_ID + VERCEL_PROJECT_ID: dan con el proyecto \"${nombre}\"."
-    echo ""
-    echo "Las tres credenciales de Vercel sirven. Se puede desplegar."
-    ;;
-  404)
-    echo "::error title=VERCEL_PROJECT_ID o VERCEL_ORG_ID mal::El token sirve (cuenta ${usuario}) pero con ese par no hay proyecto ($(codigo_de_error cuerpo.json)). Revisa los dos: el PROJECT_ID esta en Project Settings -> General -> Project ID y empieza con prj_. El ORG_ID es el Team ID de la cuenta: clic en el nombre de la cuenta arriba a la izquierda -> Settings -> General -> Team ID, y empieza con team_."
-    rm -f cuerpo.json
-    exit 1
-    ;;
-  403)
-    echo "::error title=El token no alcanza a esa cuenta::El token sirve (cuenta ${usuario}) pero no tiene permiso sobre el ORG_ID indicado ($(codigo_de_error cuerpo.json)). Al crear el token, el Scope tiene que ser la cuenta donde vive el proyecto."
-    rm -f cuerpo.json
-    exit 1
-    ;;
-  *)
-    echo "::error title=La API de Vercel respondio ${estado}::$(codigo_de_error cuerpo.json)"
-    rm -f cuerpo.json
-    exit 1
-    ;;
-esac
+# --- Escalon 3: no era ninguno de los dos ----------------------------------
 
-rm -f cuerpo.json
+echo ""
+echo "::error title=VERCEL_TOKEN no sirve::La API rechaza el token incluso sin indicarle una cuenta (${estado_token}: $(detalle)). El token no existe, vencio, o fue borrado despues de crearlo. Crea uno nuevo en https://vercel.com/account/tokens -- Scope: la cuenta donde esta el proyecto, Expiration: No Expiration -- copialo con el boton de copiar (no seleccionandolo con el mouse) y volve a cargar el secreto con: gh secret set VERCEL_TOKEN --repo jcyanez/cancha-total-f5"
+exit 1
