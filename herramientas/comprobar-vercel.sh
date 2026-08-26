@@ -2,31 +2,31 @@
 # Comprueba las tres credenciales de Vercel contra la API, antes de intentar
 # desplegar. Escrito una sola vez y usado por los dos workflows de despliegue.
 #
-# Existe porque los errores de la CLI no nombran al culpable. Con un token
-# vencido, un ORG_ID de otra cuenta o un PROJECT_ID mal copiado, `vercel pull`
-# dice cosas como "User not found" tres pasos despues de la causa, y quien lo
-# lee no sabe cual de los cinco secretos revisar.
+# Existe porque los errores de la CLI no nombran al culpable: con un ORG_ID
+# equivocado, `vercel pull` dice "Could not retrieve Project Settings" tres
+# pasos despues de la causa, y quien lo lee no sabe cual de los cinco secretos
+# revisar. Este script lo dice, y cuando puede, dice el valor correcto.
 #
-# La pregunta que importa es una sola y es concreta: ¿con estas tres
-# credenciales se alcanza ESE proyecto? Eso es exactamente lo que necesita
-# `vercel pull`, asi que es lo primero que se pregunta. Si la respuesta es si,
-# no hace falta averiguar nada mas.
+# La idea es una sola: al proyecto se le pregunta por si mismo, sin decirle a
+# que cuenta pertenece. Si el token lo alcanza, la respuesta trae en accountId
+# el id de la cuenta dueña -y ese ES el orgId que la CLI espera-. Asi no hay que
+# adivinar si la cuenta es personal o un equipo: lo contesta la API.
 #
-# Solo cuando falla se baja por una escalera para aislar la causa, y se baja
-# usando el mismo endpoint con menos datos cada vez. Preguntarle a un endpoint
-# distinto -/v2/user, por ejemplo- confunde "el token no sirve" con "ese
-# endpoint ya no existe", y devuelve un diagnostico equivocado con total
-# seguridad.
+# Eso resuelve la trampa que costo varias corridas: preguntando
+# /v9/projects/<pid>?teamId=<oid>, la API devuelve 200 aunque el teamId sea
+# equivocado -lo ignora, porque el token alcanza el proyecto por otra via-. La
+# CLI si lo valida. Comparar contra accountId es lo unico que distingue los dos
+# casos.
 #
-#   /v9/projects/<pid>?teamId=<oid>   200 -> las tres bien
-#   /v9/projects?teamId=<oid>         200 -> token y ORG_ID bien, PROJECT_ID mal
-#   /v9/projects                      200 -> token bien, ORG_ID mal
-#   ninguna                               -> el token
-#
-# No imprime ningun valor de secreto: solo codigos de estado HTTP y el campo
-# error.code de la respuesta.
+# No imprime el valor de ningun secreto. Si imprime el accountId cuando hay que
+# corregirlo: es un identificador de cuenta, no una credencial -viaja en
+# .vercel/project.json, un archivo que se commitea en miles de repositorios- y
+# sin un token no da acceso a nada.
 
 set -uo pipefail
+
+CUERPO=respuesta.json
+trap 'rm -f "${CUERPO}"' EXIT
 
 falta() {
   echo "::error title=Falta un secreto::$1 esta vacio. Cargalo en GitHub -> Settings -> Secrets and variables -> Actions."
@@ -37,9 +37,6 @@ falta() {
 [ -n "${VERCEL_ORG_ID:-}" ]     || falta VERCEL_ORG_ID
 [ -n "${VERCEL_PROJECT_ID:-}" ] || falta VERCEL_PROJECT_ID
 
-CUERPO=respuesta.json
-
-# Devuelve el codigo HTTP y deja el cuerpo en $CUERPO.
 consultar() {
   curl -sS -o "${CUERPO}" -w '%{http_code}' \
     -H "Authorization: Bearer ${VERCEL_TOKEN}" \
@@ -53,99 +50,57 @@ detalle() {
     echo "${codigo}"
     return
   fi
-  # No siempre contesta JSON. Se muestra el cuerpo recortado, y con las cadenas
-  # largas tapadas por si trae algo que no deba salir en un log publico.
+  # No siempre contesta JSON. Cuerpo recortado, con las cadenas largas tapadas.
   tr -d '\n' < "${CUERPO}" | sed -E 's/[A-Za-z0-9_.-]{24,}/***/g' | cut -c1-160
 }
 
-limpiar() { rm -f "${CUERPO}"; }
-trap limpiar EXIT
+# --- 1. El proyecto, y de paso quien es su dueño ---------------------------
 
-# --- Cuadro de situacion ---------------------------------------------------
-#
-# Se imprime siempre, pase o falle. Un "alcanzo el proyecto" a secas no alcanza:
-# la API puede ignorar un teamId que no reconoce y devolver el proyecto igual,
-# y entonces la sonda da por buena una terna con el ORG_ID equivocado -que es
-# justo lo que despues hace fallar a la CLI.
-#
-# Ninguna linea imprime el valor de un secreto. Del ORG_ID solo se dice si
-# coincide o no con los equipos que el token ve, y eso se compara adentro.
+estado=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}")
 
-estado_con_equipo=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")
-nombre_proyecto=$(jq -r '.name // "?"' "${CUERPO}" 2>/dev/null)
+if [ "${estado}" != "200" ]; then
+  # No se alcanza el proyecto. ¿Es el token o es el PROJECT_ID?
+  estado_lista=$(consultar "https://api.vercel.com/v9/projects?limit=1")
 
-estado_sin_equipo=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}")
-estado_equipo=$(consultar "https://api.vercel.com/v2/teams/${VERCEL_ORG_ID}")
-
-# ¿El ORG_ID guardado es uno de los equipos que este token alcanza?
-consultar "https://api.vercel.com/v2/teams?limit=20" > /dev/null
-equipos=$(jq -r '.teams[]? | .id + " (" + (.slug // "?") + ")"' "${CUERPO}" 2>/dev/null)
-if jq -e --arg oid "${VERCEL_ORG_ID}" '.teams[]? | select(.id == $oid)' "${CUERPO}" > /dev/null 2>&1; then
-  coincide="SI"
-else
-  coincide="NO"
+  if [ "${estado_lista}" = "200" ]; then
+    echo "::error title=VERCEL_PROJECT_ID esta mal::El token sirve -la API lista proyectos- pero con ese PROJECT_ID no hay ninguno (${estado}). Copialo de Project Settings -> General -> Project ID: empieza con prj_ y NO es el nombre del proyecto."
+  else
+    echo "::error title=VERCEL_TOKEN no sirve::La API rechaza el token (${estado_lista}: $(detalle)). El token no existe, vencio, o fue borrado. Crea uno nuevo en https://vercel.com/account/tokens -- Scope: la cuenta donde esta el proyecto, Expiration: No Expiration -- copialo con el boton de copiar y volve a cargarlo con: gh secret set VERCEL_TOKEN --repo jcyanez/cancha-total-f5"
+  fi
+  exit 1
 fi
 
-echo "Cuadro de situacion de las credenciales de Vercel:"
-echo "  proyecto con teamId .......... ${estado_con_equipo}"
-echo "  proyecto sin teamId .......... ${estado_sin_equipo}"
-echo "  el ORG_ID existe como equipo . ${estado_equipo}"
-echo "  el ORG_ID esta entre los equipos que ve el token: ${coincide}"
-echo "  equipos que ve el token:"
-if [ -n "${equipos}" ]; then
-  echo "${equipos}" | sed 's/^/    - /'
-else
-  echo "    (ninguno)"
-fi
-echo ""
+nombre=$(jq -r '.name // "?"' "${CUERPO}")
+cuenta=$(jq -r '.accountId // empty' "${CUERPO}")
 
-# --- La pregunta que importa ----------------------------------------------
-#
-# Las dos condiciones juntas: el proyecto se alcanza Y el ORG_ID es de verdad
-# un equipo de este token. Sin la segunda, la CLI falla despues con
-# "Could not retrieve Project Settings" y el mensaje no dice por que.
+echo "Proyecto alcanzado: \"${nombre}\""
 
-if [ "${estado_con_equipo}" = "200" ] && [ "${coincide}" = "SI" ]; then
-  echo "Las tres credenciales de Vercel sirven."
-  echo "  Proyecto alcanzado: \"${nombre_proyecto}\""
+if [ -z "${cuenta}" ]; then
+  # La API no dijo de quien es. No se puede validar el ORG_ID, pero tampoco hay
+  # motivo para detener el despliegue: la CLI lo dira si esta mal.
+  echo "Aviso: la respuesta no trae accountId, asi que el ORG_ID no se pudo verificar."
   exit 0
 fi
 
-if [ "${estado_con_equipo}" = "200" ] && [ "${coincide}" = "NO" ]; then
-  echo "::error title=VERCEL_ORG_ID no es un equipo de este token::La API devolvio el proyecto \"${nombre_proyecto}\", pero ignorando el teamId: el ORG_ID guardado no esta entre los equipos que este token alcanza. La CLI si lo valida, y por eso falla despues con 'Could not retrieve Project Settings'. Usa uno de los ids listados arriba: es el Team ID de la cuenta donde vive el proyecto (clic en el nombre de la cuenta arriba a la izquierda -> Settings -> General -> Team ID)."
-  exit 1
-fi
+# --- 2. ¿El ORG_ID guardado es el dueño del proyecto? ---------------------
 
-estado="${estado_con_equipo}"
-
-echo "No se alcanzo el proyecto: la API respondio ${estado} ($(detalle))."
-echo "Bajando la escalera para aislar cual de las tres credenciales falla..."
-echo ""
-
-# --- Escalon 1: ¿el token ve la cuenta? ------------------------------------
-
-estado_cuenta=$(consultar "https://api.vercel.com/v9/projects?teamId=${VERCEL_ORG_ID}&limit=1")
-echo "  con token + ORG_ID:  ${estado_cuenta}"
-
-if [ "${estado_cuenta}" = "200" ]; then
+if [ "${VERCEL_ORG_ID}" = "${cuenta}" ]; then
+  echo "VERCEL_ORG_ID coincide con la cuenta dueña del proyecto."
   echo ""
-  echo "::error title=VERCEL_PROJECT_ID esta mal::El token y el ORG_ID sirven -la API lista los proyectos de esa cuenta- pero el PROJECT_ID no corresponde a ninguno. Copialo de Project Settings -> General -> Project ID: empieza con prj_ y NO es el nombre del proyecto."
-  exit 1
+  echo "Las tres credenciales de Vercel sirven."
+  exit 0
 fi
-
-# --- Escalon 2: ¿el token sirve, sin decirle a que cuenta? -----------------
-
-estado_token=$(consultar "https://api.vercel.com/v9/projects?limit=1")
-echo "  con token solo:      ${estado_token}"
-
-if [ "${estado_token}" = "200" ]; then
-  echo ""
-  echo "::error title=VERCEL_ORG_ID esta mal::El token sirve, pero con ese ORG_ID la API no responde (${estado_cuenta}). El ORG_ID es el Team ID de la cuenta donde vive el proyecto: clic en el nombre de la cuenta arriba a la izquierda -> Settings -> General -> Team ID. Empieza con team_."
-  exit 1
-fi
-
-# --- Escalon 3: no era ninguno de los dos ----------------------------------
 
 echo ""
-echo "::error title=VERCEL_TOKEN no sirve::La API rechaza el token incluso sin indicarle una cuenta (${estado_token}: $(detalle)). El token no existe, vencio, o fue borrado despues de crearlo. Crea uno nuevo en https://vercel.com/account/tokens -- Scope: la cuenta donde esta el proyecto, Expiration: No Expiration -- copialo con el boton de copiar (no seleccionandolo con el mouse) y volve a cargar el secreto con: gh secret set VERCEL_TOKEN --repo jcyanez/cancha-total-f5"
+echo "El VERCEL_ORG_ID guardado NO es la cuenta dueña de este proyecto."
+echo ""
+echo "  El valor correcto, tal como lo espera la CLI, es:"
+echo ""
+echo "      ${cuenta}"
+echo ""
+echo "  Cargalo asi:"
+echo ""
+echo "      gh secret set VERCEL_ORG_ID --repo jcyanez/cancha-total-f5"
+echo ""
+echo "::error title=VERCEL_ORG_ID esta mal::El proyecto \"${nombre}\" pertenece a la cuenta ${cuenta}, y el ORG_ID guardado es otro. Ojo con la trampa: /v9/projects?teamId=<oid> devuelve 200 aunque el teamId sea equivocado, porque la API lo ignora cuando el token alcanza el proyecto de todos modos. La CLI si lo valida, y por eso falla despues con 'Could not retrieve Project Settings'. El valor correcto esta impreso en el log de este paso."
 exit 1
