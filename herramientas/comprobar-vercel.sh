@@ -61,16 +61,62 @@ detalle() {
 limpiar() { rm -f "${CUERPO}"; }
 trap limpiar EXIT
 
+# --- Cuadro de situacion ---------------------------------------------------
+#
+# Se imprime siempre, pase o falle. Un "alcanzo el proyecto" a secas no alcanza:
+# la API puede ignorar un teamId que no reconoce y devolver el proyecto igual,
+# y entonces la sonda da por buena una terna con el ORG_ID equivocado -que es
+# justo lo que despues hace fallar a la CLI.
+#
+# Ninguna linea imprime el valor de un secreto. Del ORG_ID solo se dice si
+# coincide o no con los equipos que el token ve, y eso se compara adentro.
+
+estado_con_equipo=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")
+nombre_proyecto=$(jq -r '.name // "?"' "${CUERPO}" 2>/dev/null)
+
+estado_sin_equipo=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}")
+estado_equipo=$(consultar "https://api.vercel.com/v2/teams/${VERCEL_ORG_ID}")
+
+# ¿El ORG_ID guardado es uno de los equipos que este token alcanza?
+consultar "https://api.vercel.com/v2/teams?limit=20" > /dev/null
+equipos=$(jq -r '.teams[]? | .id + " (" + (.slug // "?") + ")"' "${CUERPO}" 2>/dev/null)
+if jq -e --arg oid "${VERCEL_ORG_ID}" '.teams[]? | select(.id == $oid)' "${CUERPO}" > /dev/null 2>&1; then
+  coincide="SI"
+else
+  coincide="NO"
+fi
+
+echo "Cuadro de situacion de las credenciales de Vercel:"
+echo "  proyecto con teamId .......... ${estado_con_equipo}"
+echo "  proyecto sin teamId .......... ${estado_sin_equipo}"
+echo "  el ORG_ID existe como equipo . ${estado_equipo}"
+echo "  el ORG_ID esta entre los equipos que ve el token: ${coincide}"
+echo "  equipos que ve el token:"
+if [ -n "${equipos}" ]; then
+  echo "${equipos}" | sed 's/^/    - /'
+else
+  echo "    (ninguno)"
+fi
+echo ""
+
 # --- La pregunta que importa ----------------------------------------------
+#
+# Las dos condiciones juntas: el proyecto se alcanza Y el ORG_ID es de verdad
+# un equipo de este token. Sin la segunda, la CLI falla despues con
+# "Could not retrieve Project Settings" y el mensaje no dice por que.
 
-estado=$(consultar "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")
-
-if [ "${estado}" = "200" ]; then
-  nombre=$(jq -r '.name // "?"' "${CUERPO}")
+if [ "${estado_con_equipo}" = "200" ] && [ "${coincide}" = "SI" ]; then
   echo "Las tres credenciales de Vercel sirven."
-  echo "  Proyecto alcanzado: \"${nombre}\""
+  echo "  Proyecto alcanzado: \"${nombre_proyecto}\""
   exit 0
 fi
+
+if [ "${estado_con_equipo}" = "200" ] && [ "${coincide}" = "NO" ]; then
+  echo "::error title=VERCEL_ORG_ID no es un equipo de este token::La API devolvio el proyecto \"${nombre_proyecto}\", pero ignorando el teamId: el ORG_ID guardado no esta entre los equipos que este token alcanza. La CLI si lo valida, y por eso falla despues con 'Could not retrieve Project Settings'. Usa uno de los ids listados arriba: es el Team ID de la cuenta donde vive el proyecto (clic en el nombre de la cuenta arriba a la izquierda -> Settings -> General -> Team ID)."
+  exit 1
+fi
+
+estado="${estado_con_equipo}"
 
 echo "No se alcanzo el proyecto: la API respondio ${estado} ($(detalle))."
 echo "Bajando la escalera para aislar cual de las tres credenciales falla..."
