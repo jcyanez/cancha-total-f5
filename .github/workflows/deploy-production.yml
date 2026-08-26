@@ -125,6 +125,21 @@ jobs:
           fi
           echo "Los tres secretos de Vercel están presentes."
 
+      # Que el secreto exista no dice que sirva. Si el valor guardado no es un
+      # token de Vercel -es facilísimo pegar el de Turso, que es un JWT-, la CLI
+      # falla tres pasos más adelante con un mensaje sobre caracteres inválidos
+      # que no nombra al secreto culpable. Esto lo dice acá y en castellano.
+      - name: Comprobar que el token de Vercel sirva
+        run: |
+          if ! vercel whoami > respuesta.txt 2> error.txt; then
+            echo "::error title=VERCEL_TOKEN no sirve::La CLI de Vercel no pudo autenticarse. Un token de Vercel es alfanumérico de 24 caracteres, SIN guiones ni puntos: si el valor guardado tiene puntos, es un JWT (probablemente el de Turso). Creá uno nuevo en https://vercel.com/account/tokens y volvé a cargar el secreto."
+            # Por si el mensaje del error trae el valor adentro.
+            sed -E 's/[A-Za-z0-9_.-]{20,}/***/g' error.txt
+            exit 1
+          fi
+          echo "Autenticado en Vercel como: $(cat respuesta.txt)"
+          rm -f respuesta.txt error.txt
+
       # 1) pull: baja la configuración del proyecto y las variables de entorno
       #    del entorno de producción, para que el build de acá sea el mismo que
       #    haría Vercel.
