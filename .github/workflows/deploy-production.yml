@@ -124,7 +124,7 @@ jobs:
       # acertarle a un formato que puede cambiar entre versiones, y `vercel
       # link` produce el que esta versión entiende. .vercel/ está en .gitignore.
       - name: Vincular el proyecto de Vercel
-        run: vercel link --yes --project "${VERCEL_PROJECT_ID}"
+        run: ./herramientas/vincular-vercel.sh
 
       # 1) pull: baja la configuración del proyecto y las variables de entorno
       #    del entorno de producción, para que el build de acá sea el mismo que
