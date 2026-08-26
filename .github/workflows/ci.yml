@@ -1,0 +1,106 @@
+# Integración Continua.
+#
+# Es el único lugar donde se define qué significa "el código está bien". Los
+# workflows de despliegue no repiten estas etapas: lo llaman a él con
+# `uses:`, y así no puede pasar que la puerta del preview y la de producción
+# revisen cosas distintas.
+#
+#   push a una rama  -> corre acá
+#   pull request     -> corre acá (y después el preview)
+#   push a main      -> NO corre acá: lo llama deploy-production.yml, para que
+#                       el despliegue dependa del CI en vez de correr al lado
+#
+# La base de datos de estas pruebas es un archivo temporal que se crea y se
+# tira en el runner. Los secretos de Turso NO llegan a este workflow: CI no
+# tiene con qué tocar la base de producción, y eso es a propósito.
+
+name: CI
+
+on:
+  push:
+    # main queda afuera adrede: ahí manda deploy-production.yml, que llama a
+    # este mismo archivo como primer job.
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_call:
+
+# Un push encima de otro en la misma rama cancela el anterior: no tiene sentido
+# gastar un runner revisando un commit que ya quedó viejo.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint · Pruebas · Build · Humo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v7
+
+      - name: Preparar Node
+        uses: actions/setup-node@v7
+        with:
+          # La misma versión que declara engines.node en package.json y la
+          # misma que usa el runtime de Vercel.
+          node-version: 22
+          cache: npm
+
+      # npm ci y no npm install: instala exactamente lo que dice el lockfile y
+      # falla si el lockfile y el package.json no coinciden. Es la diferencia
+      # entre "funciona en mi máquina" y "funciona".
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Este proyecto es JavaScript sin tipos: no hay TypeScript, ni JSDoc
+      # tipado, ni tsconfig. Un `tsc --noEmit` acá no revisaría nada, y un
+      # script que solo imprime "ok" sería una casilla verde que no verifica
+      # nada. El paso queda visible, declarado y sin fingir.
+      #
+      # Lo más cerca que llega este stack es el parseo de todos los archivos,
+      # y eso ya lo hace la etapa de build.
+      - name: Typecheck (no aplica en este stack)
+        run: |
+          echo "::notice title=Typecheck::No aplica: el proyecto es JavaScript sin anotaciones de tipos."
+          echo "Sin TypeScript ni JSDoc tipado no hay nada que un typechecker pueda verificar."
+          echo "La verificación estática que sí corre es el parseo de los 19 archivos, en la etapa Build."
+
+      # Las 87 pruebas de node:test. Cada una levanta el sistema real como
+      # proceso hijo, con el reloj congelado y una base propia en el directorio
+      # temporal del runner.
+      - name: Pruebas
+        run: npm test
+
+      - name: Build (verificación del artefacto desplegable)
+        run: npm run build
+
+      # Levanta el sistema y lo interroga de verdad: /api/health, la portada, y
+      # una reserva de ida y vuelta. Contra la base local del runner.
+      - name: Humo (contra la base local del runner)
+        run: npm run humo
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### CI — ${{ job.status }}"
+            echo ""
+            echo "| Etapa | Qué verifica |"
+            echo "|---|---|"
+            echo "| Install | \`npm ci\` contra el lockfile |"
+            echo "| Lint | ESLint 9, reglas de defecto (no de estilo) |"
+            echo "| Typecheck | N/A — JavaScript sin tipos |"
+            echo "| Pruebas | 87 pruebas de \`node:test\` |"
+            echo "| Build | parseo, fugas a devDependencies, entrada serverless |"
+            echo "| Humo | la app arranca, responde y llega a su base |"
+          } >> "$GITHUB_STEP_SUMMARY"

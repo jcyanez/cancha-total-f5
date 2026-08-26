@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+
+  "//": "Todas las rutas van a una sola función, porque el enrutamiento lo hace Express.",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api" }
+  ],
+
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 15
+    }
+  },
+
+  "git": {
+    "//": "Apagado a propósito. Vercel puede desplegar solo con cada push, y si lo hiciera, desplegaría ANTES de saber si el CI pasó: la puerta dejaría de ser una puerta. El despliegue lo dispara GitHub Actions con la CLI, después del CI. Esta línea es lo que hace que eso sea cierto y no solo la intención.",
+    "deploymentEnabled": false
+  }
+}

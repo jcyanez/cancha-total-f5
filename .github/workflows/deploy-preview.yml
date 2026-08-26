@@ -1,0 +1,101 @@
+# Preview Deployment: cada pull request recibe su propia URL.
+#
+#     pull request  ──>  CI  ──✅──>  vercel deploy (preview)  ──>  URL temporal
+#                         │
+#                         └──❌──>  no hay preview
+#
+# Es la misma puerta que producción y el mismo archivo de CI; lo único distinto
+# es el entorno (`preview` en vez de `production`) y que no lleva `--prod`.
+#
+# La diferencia que importa para entender el concepto: el preview NO reemplaza
+# lo que está en producción. Convive. Producción sigue sirviendo lo último que
+# se fusionó a main, y la URL del preview muestra lo que propone este PR.
+#
+# Nota sobre migraciones: el preview NO migra. Apunta a las variables de entorno
+# del entorno "Preview" de Vercel, y cambiar el esquema desde un PR sin fusionar
+# es exactamente cómo se rompe la producción por accidente. El esquema lo mueve
+# el workflow de producción, después del merge.
+
+name: Deploy Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Para poder dejar la URL del preview como comentario en el PR.
+  pull-requests: write
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  desplegar:
+    name: Desplegar preview
+    needs: ci
+    runs-on: ubuntu-latest
+
+    # Un PR que viene de un fork no recibe los secretos del repositorio, por
+    # diseño de GitHub: si no, cualquiera podría abrir un PR y quedarse con el
+    # token. En ese caso el CI corre igual y el preview se omite.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    environment:
+      name: preview
+      url: ${{ steps.desplegar.outputs.url }}
+
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Instalar la CLI de Vercel
+        run: npm install --global vercel@latest
+
+      - name: vercel pull (entorno preview)
+        run: vercel pull --yes --environment=preview
+
+      - name: vercel build
+        run: vercel build
+
+      - name: vercel deploy
+        id: desplegar
+        run: |
+          url=$(vercel deploy --prebuilt)
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Preview en: ${url}"
+
+      - name: Esperar a que el preview esté servido
+        run: sleep 10
+
+      - name: Interrogar el preview
+        run: node herramientas/humo.js "${{ steps.desplegar.outputs.url }}"
+
+      - name: Dejar la URL en el pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          URL: ${{ steps.desplegar.outputs.url }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            printf '**Preview desplegado** · commit `%s`\n\n' "$COMMIT"
+            printf '%s\n\n' "$URL"
+            printf 'Salud de la base: %s/api/health\n\n' "$URL"
+            printf 'El CI pasó antes de este despliegue. Producción no se tocó.\n'
+          } > comentario.md
+          gh pr comment "$PR" --body-file comentario.md
