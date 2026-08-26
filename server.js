@@ -1,17 +1,16 @@
 // Cancha Total F5 - sistema de reservas
-// Node + Express + better-sqlite3, vistas renderizadas en el servidor.
+// Node + Express + libSQL (SQLite local o Turso), vistas renderizadas en el
+// servidor. Con qué base habla lo decide bd.js según el entorno; acá no se
+// sabe si los datos están en un archivo o al otro lado de la red.
 
 const express = require('express');
-const Database = require('better-sqlite3');
-const path = require('path');
-const { crearTablaDeReservas } = require('./esquema.js');
+const bd = require('./bd.js');
 
 // Configuración. Los valores por omisión son los de siempre: el sistema sin
 // variables de entorno arranca exactamente como arrancaba. Existen para poder
 // levantarlo en otro puerto, contra otra base o con el reloj puesto en un
 // instante fijo, sin tocar el código (hallazgos E-1, E-2, E-3, E-6).
 const PUERTO = Number(process.env.CANCHA_PUERTO ?? 3000);
-const RUTA_BASE = process.env.CANCHA_BD || path.join(__dirname, 'reservas.db');
 const INSTANTE_FIJO = process.env.CANCHA_AHORA ? new Date(process.env.CANCHA_AHORA) : null;
 
 // El único lugar del sistema que lee el reloj.
@@ -23,9 +22,19 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const db = new Database(RUTA_BASE);
+// El esquema tiene que estar antes de la primera consulta. En un servidor de
+// siempre eso pasa al arrancar; en una función serverless, en el primer pedido
+// que le toque el arranque en frío. bd.inicializar() se encarga una sola vez
+// por proceso y es idempotente, así que el mismo código sirve para los dos.
+app.use((req, res, siguiente) => {
+  bd.inicializar().then(() => siguiente(), siguiente);
+});
 
-crearTablaDeReservas(db);
+// Envuelve un manejador asíncrono para que un rechazo llegue al manejador de
+// errores en vez de quedar como promesa sin atender. Express 4 no lo hace solo.
+function asincrono(manejador) {
+  return (req, res, siguiente) => Promise.resolve(manejador(req, res)).catch(siguiente);
+}
 
 // Lo que escribe el cliente se muestra como texto, nunca se interpreta como
 // parte del documento (PANT-16).
@@ -84,18 +93,33 @@ function horasHastaElPartido(reserva, instante) {
   return (inicio - instante) / (1000 * 60 * 60);
 }
 
-function checkDisponible(cancha, fecha, hora) {
-  const fila = db.prepare(
+async function checkDisponible(cancha, fecha, hora) {
+  const fila = await bd.consultarUno(
     `SELECT COUNT(*) AS total FROM reservas
-     WHERE cancha = ? AND fecha = ? AND hora = ? AND estado = 'activa'`
-  ).get(cancha, fecha, hora);
+     WHERE cancha = ? AND fecha = ? AND hora = ? AND estado = 'activa'`,
+    [cancha, fecha, hora]
+  );
   return fila.total === 0;
 }
 
-function getReservasDelDia(fecha) {
-  return db.prepare(
-    `SELECT * FROM reservas WHERE fecha = ? ORDER BY cancha, hora`
-  ).all(fecha);
+// Las grillas necesitan saber el estado de 14 bloques (28 en la pantalla de
+// inicio, que muestra las dos canchas). Preguntando bloque por bloque eso eran
+// 28 consultas: con la base en un archivo daba igual, con la base al otro lado
+// de la red son 28 viajes para pintar una tabla. Se traen todas juntas y se
+// contesta en memoria. El HTML que sale es exactamente el mismo.
+async function bloquesOcupadosDelDia(fecha) {
+  const filas = await bd.consultar(
+    `SELECT cancha, hora FROM reservas WHERE fecha = ? AND estado = 'activa'`,
+    [fecha]
+  );
+  return new Set(filas.map((f) => `${f.cancha}-${f.hora}`));
+}
+
+async function getReservasDelDia(fecha) {
+  return bd.consultar(
+    `SELECT * FROM reservas WHERE fecha = ? ORDER BY cancha, hora`,
+    [fecha]
+  );
 }
 
 // Sello de tiempo con el formato que usa SQLite, tomado del reloj de la
@@ -109,15 +133,16 @@ function selloDeTiempo(fecha) {
   return `${dia} ${reloj}`;
 }
 
-function crearReserva(datos) {
-  const info = db.prepare(
+async function crearReserva(datos) {
+  const info = await bd.ejecutar(
     `INSERT INTO reservas (cancha, fecha, hora, cliente, telefono, precio, estado, creada_en)
-     VALUES (?, ?, ?, ?, ?, ?, 'activa', ?)`
-  ).run(
-    datos.cancha, datos.fecha, datos.hora, datos.cliente, datos.telefono, datos.precio,
-    selloDeTiempo(ahora())
+     VALUES (?, ?, ?, ?, ?, ?, 'activa', ?)`,
+    [
+      datos.cancha, datos.fecha, datos.hora, datos.cliente, datos.telefono, datos.precio,
+      selloDeTiempo(ahora()),
+    ]
   );
-  return info.lastInsertRowid;
+  return info.ultimoId;
 }
 
 function hoyISO() {
@@ -857,8 +882,9 @@ ${contenido}
 
 // GET / -------------------------------------------------------------------
 // Disponibilidad del día para ambas canchas + formulario de reserva.
-app.get('/', (req, res) => {
+app.get('/', asincrono(async (req, res) => {
   const fecha = req.query.fecha || hoyISO();
+  const ocupados = await bloquesOcupadosDelDia(fecha);
 
   let filasCancha1 = '';
   let filasCancha2 = '';
@@ -871,10 +897,10 @@ app.get('/', (req, res) => {
     // nada; el precio lo sigue decidiendo tarifaDelBloque().
     const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
 
-    const libre1 = checkDisponible(1, fecha, hora);
+    const libre1 = !ocupados.has(`1-${hora}`);
     filasCancha1 += `<tr${conLuz}><td>${hora}:00</td><td class="${libre1 ? 'libre' : 'ocupado'}">${libre1 ? 'Libre' : 'Ocupado'}</td><td>${formatColones(precio)}</td></tr>`;
 
-    const libre2 = checkDisponible(2, fecha, hora);
+    const libre2 = !ocupados.has(`2-${hora}`);
     filasCancha2 += `<tr${conLuz}><td>${hora}:00</td><td class="${libre2 ? 'libre' : 'ocupado'}">${libre2 ? 'Libre' : 'Ocupado'}</td><td>${formatColones(precio)}</td></tr>`;
   }
 
@@ -947,15 +973,16 @@ app.get('/', (req, res) => {
 `;
 
   res.send(layout('Inicio', contenido));
-});
+}));
 
 // GET /disponibilidad/cancha1 y /disponibilidad/cancha2 -------------------
 // Los dos son la misma pantalla con distinto número de cancha.
-function pantallaDeDisponibilidad(cancha, req, res) {
+async function pantallaDeDisponibilidad(cancha, req, res) {
   const fecha = req.query.fecha || hoyISO();
+  const ocupados = await bloquesOcupadosDelDia(fecha);
   let filas = '';
   for (let hora = 8; hora <= 21; hora++) {
-    const libre = checkDisponible(cancha, fecha, hora);
+    const libre = !ocupados.has(`${cancha}-${hora}`);
     const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
     filas += `<tr${conLuz}><td>${hora}:00</td><td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td></tr>`;
   }
@@ -973,11 +1000,11 @@ function pantallaDeDisponibilidad(cancha, req, res) {
   res.send(layout(`Cancha ${cancha}`, contenido));
 }
 
-app.get('/disponibilidad/cancha1', (req, res) => pantallaDeDisponibilidad(1, req, res));
-app.get('/disponibilidad/cancha2', (req, res) => pantallaDeDisponibilidad(2, req, res));
+app.get('/disponibilidad/cancha1', asincrono((req, res) => pantallaDeDisponibilidad(1, req, res)));
+app.get('/disponibilidad/cancha2', asincrono((req, res) => pantallaDeDisponibilidad(2, req, res)));
 
 // POST /reservas ------------------------------------------------------------
-app.post('/reservas', (req, res) => {
+app.post('/reservas', asincrono(async (req, res) => {
   // Paso 1: leer y normalizar lo que mandó el formulario.
   const canchaTexto = req.body.cancha;
   const fecha = req.body.fecha;
@@ -1028,7 +1055,7 @@ app.post('/reservas', (req, res) => {
   }
 
   // Paso 3: verificar que el bloque siga libre.
-  const disponible = checkDisponible(cancha, fecha, hora);
+  const disponible = await checkDisponible(cancha, fecha, hora);
   if (!disponible) {
     const contenidoOcupado = `<div class="error" role="alert">Ese bloque ya está ocupado para la cancha ${cancha} el ${escaparHTML(fecha)} a las ${hora}:00.</div><p class="acciones"><a href="/">Volver</a></p>`;
     return res.send(layout('Error', contenidoOcupado));
@@ -1043,17 +1070,18 @@ app.post('/reservas', (req, res) => {
   // (RN-23). Las canceladas no cuentan: frecuente es el que juega, no el que
   // aparta (RN-24).
   const mesDeRegistro = hoyISO().slice(0, 7);
-  const conteoMes = db.prepare(
+  const conteoMes = await bd.consultarUno(
     `SELECT COUNT(*) AS total FROM reservas
      WHERE telefono = ? AND substr(creada_en, 1, 7) = ?
-       AND estado = 'activa'`
-  ).get(telefono, mesDeRegistro);
+       AND estado = 'activa'`,
+    [telefono, mesDeRegistro]
+  );
 
   const aplicaDescuento = esClienteFrecuente(conteoMes.total);
   precio = precioConDescuento(precio, conteoMes.total);
 
   // Paso 6: guardar la reserva.
-  const id = crearReserva({ cancha, fecha, hora, cliente, telefono, precio });
+  const id = await crearReserva({ cancha, fecha, hora, cliente, telefono, precio });
 
   // Paso 7: armar la página de confirmación.
   const notaDescuento = aplicaDescuento ? ' (con 10% de descuento por cliente frecuente)' : '';
@@ -1066,12 +1094,12 @@ app.post('/reservas', (req, res) => {
 <p class="acciones"><a href="/dia/${escaparHTML(fecha)}">Ver lista del día</a> | <a href="/">Volver</a></p>
 `;
   res.send(layout('Reserva creada', contenido));
-});
+}));
 
 // POST /reservas/:id/cancelar ------------------------------------------------
-app.post('/reservas/:id/cancelar', (req, res) => {
+app.post('/reservas/:id/cancelar', asincrono(async (req, res) => {
   const id = Number(req.params.id);
-  const reserva = db.prepare('SELECT * FROM reservas WHERE id = ?').get(id);
+  const reserva = await bd.consultarUno('SELECT * FROM reservas WHERE id = ?', [id]);
 
   if (!reserva) {
     return res.send(layout('Error', `<div class="error" role="alert">No existe la reserva #${id}.</div>`));
@@ -1082,17 +1110,17 @@ app.post('/reservas/:id/cancelar', (req, res) => {
 
   // Regla de las 24 horas: faltan 24 o más hasta que empiece el partido.
   if (horasHastaElPartido(reserva, ahora()) >= HORAS_DE_PLAZO_PARA_CANCELAR) {
-    db.prepare(`UPDATE reservas SET estado = 'cancelada' WHERE id = ?`).run(id);
+    await bd.ejecutar(`UPDATE reservas SET estado = 'cancelada' WHERE id = ?`, [id]);
     return res.send(layout('Cancelada', `<div class="ok" role="status">Reserva #${id} cancelada.</div><p class="acciones"><a href="/dia/${reserva.fecha}">Volver</a></p>`));
   } else {
     return res.send(layout('Error', `<div class="error" role="alert">La reserva #${id} no se puede cancelar: falta menos de 24 horas para el bloque.</div><p class="acciones"><a href="/dia/${reserva.fecha}">Volver</a></p>`));
   }
-});
+}));
 
 // GET /dia/:fecha -------------------------------------------------------------
-app.get('/dia/:fecha', (req, res) => {
+app.get('/dia/:fecha', asincrono(async (req, res) => {
   const fecha = req.params.fecha;
-  const reservas = getReservasDelDia(fecha);
+  const reservas = await getReservasDelDia(fecha);
 
   const filas = reservas.map(r => {
     const claseFila = r.estado === 'cancelada' ? 'cancelada' : '';
@@ -1113,7 +1141,7 @@ app.get('/dia/:fecha', (req, res) => {
 <p class="acciones"><a href="/?fecha=${escaparHTML(fecha)}">Volver a disponibilidad</a></p>
 `;
   res.send(layout('Reservas del día', contenido));
-});
+}));
 
 // GET /api/cotizar --------------------------------------------------------
 // Precio previo de un bloque, usado por el formulario de la página de inicio.
@@ -1126,12 +1154,71 @@ app.get('/api/cotizar', (req, res) => {
   res.json({ precio, precioFormateado: formatColones(precio) });
 });
 
+// GET /api/health ---------------------------------------------------------
+// Comprobación de vida, para el pipeline y para verificar desde afuera que la
+// aplicación desplegada llega de verdad a su base de datos.
+//
+// La consulta es real —una lectura contra la tabla de reservas— porque el
+// sentido del endpoint es distinguir «la aplicación responde» de «la
+// aplicación habla con su base». Lo primero sin lo segundo no sirve de nada.
+//
+// Lo que sale de acá no incluye la URL de la base, ni el token, ni el mensaje
+// crudo del driver: solo qué clase de base es y si contestó.
+app.get('/api/health', async (req, res) => {
+  const clase = bd.descripcionDeLaBase();
+  try {
+    await bd.inicializar();
+    await bd.comprobarConexion();
+    const { total } = await bd.consultarUno('SELECT COUNT(*) AS total FROM reservas');
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      driver: 'libsql',
+      backend: clase,
+      reservas: total,
+    });
+  } catch (error) {
+    // 503: la aplicación está en pie pero no puede servir. Es lo que tiene que
+    // ver el pipeline para dar el despliegue por malo.
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      driver: 'libsql',
+      backend: clase,
+      // El nombre del problema, no su contenido: un mensaje de driver puede
+      // traer la URL de la base adentro.
+      motivo: error.code || error.name || 'error de conexión',
+    });
+  }
+});
+
+// Manejador de errores. Cualquier fallo asíncrono que suba por asincrono()
+// termina acá: el visitante ve una página, no una traza, y el detalle queda en
+// el registro del servidor.
+// eslint-disable-next-line no-unused-vars -- Express identifica al manejador de errores por sus cuatro parámetros
+app.use((error, req, res, siguiente) => {
+  console.error('[error]', error.message);
+  res.status(500).send(
+    layout('Error', '<div class="error" role="alert">El sistema no pudo atender el pedido. Intentá de nuevo.</div><p class="acciones"><a href="/">Volver</a></p>')
+  );
+});
+
 // Solo arranca si se lo invoca directamente. Cargar este archivo desde una
-// prueba ya no levanta un servidor ni ocupa un puerto.
+// prueba ya no levanta un servidor ni ocupa un puerto, y en Vercel el que lo
+// carga es api/index.js, que exporta la aplicación sin escuchar en un puerto.
 if (require.main === module) {
-  const servidor = app.listen(PUERTO, () => {
-    console.log(`Cancha Total F5 escuchando en el puerto ${servidor.address().port}`);
-  });
+  // Acá sí se espera el esquema antes de escuchar: si la base no está, el
+  // arranque local falla de una y se ve el motivo, como fallaba antes.
+  bd.inicializar()
+    .then(() => {
+      const servidor = app.listen(PUERTO, () => {
+        console.log(`Cancha Total F5 escuchando en el puerto ${servidor.address().port}`);
+      });
+    })
+    .catch((error) => {
+      console.error(`No se pudo arrancar: ${error.message}`);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { app, ahora, tarifaDelBloque, precioConDescuento, horasHastaElPartido };

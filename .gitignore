@@ -1,2 +1,17 @@
 node_modules
+
+# La base local. En produccion los datos viven en Turso.
 reservas.db
+reservas.db-shm
+reservas.db-wal
+reservas.db-journal
+
+# Credenciales. Lo unico que se versiona es .env.example, con los nombres.
+.env
+.env.*
+!.env.example
+
+# Vercel: .vercel/project.json guarda orgId y projectId del proyecto enlazado.
+# No son secretos de la misma clase que un token, pero identifican la cuenta y
+# no hacen falta en el repositorio: en el pipeline llegan por Secrets.
+.vercel

@@ -1,51 +1,45 @@
-// Borra reservas.db y la recrea con reservas de ejemplo variadas.
+// Rehace la base LOCAL desde cero con reservas de ejemplo.
 // Uso: npm run datos
+//
+// Es un atajo de desarrollo, y hace lo mismo que hacía antes: borra el archivo
+// de la base y lo recrea sembrado. Ahora el esquema lo pone la migración y las
+// filas las pone database/sembrar.js: acá no hay ni CREATE TABLE ni INSERT
+// repetidos (hallazgo E-9).
+//
+// Se niega a correr si las variables apuntan a una base remota: `npm run datos`
+// borra, y lo que borra tiene que ser el archivo de la máquina de quien lo
+// corre. Para sembrar Turso está `npm run db:seed`.
 
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
-const { crearTablaDeReservas } = require('./esquema.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const bd = require('./bd.js');
+const { sembrar } = require('./database/sembrar.js');
 
-const RUTA_DB = path.join(__dirname, 'reservas.db');
+const RUTA_DB = process.env.CANCHA_BD || path.join(__dirname, 'reservas.db');
 
-if (fs.existsSync(RUTA_DB)) {
-  fs.unlinkSync(RUTA_DB);
+async function principal() {
+  if (bd.esRemota()) {
+    throw new Error(
+      'TURSO_DATABASE_URL está definida: `npm run datos` borra la base y no va a ' +
+      'hacerlo contra una base remota. Para sembrar Turso: npm run db:seed'
+    );
+  }
+
+  for (const sufijo of ['', '-wal', '-shm', '-journal']) {
+    if (fs.existsSync(RUTA_DB + sufijo)) {
+      fs.rmSync(RUTA_DB + sufijo, { force: true });
+    }
+  }
   console.log('Base de datos anterior borrada.');
+
+  await bd.inicializar();
+  const cuantas = await sembrar({ silencioso: true });
+
+  console.log(`Base de datos recreada con ${cuantas} reservas de ejemplo.`);
+  bd.cerrar();
 }
 
-const db = new Database(RUTA_DB);
-
-crearTablaDeReservas(db);
-
-function fechaISO(offsetDias) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDias);
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mes}-${dia}`;
-}
-
-const insertar = db.prepare(`
-  INSERT INTO reservas (cancha, fecha, hora, cliente, telefono, precio, estado)
-  VALUES (@cancha, @fecha, @hora, @cliente, @telefono, @precio, @estado)
-`);
-
-const reservas = [
-  { cancha: 1, fecha: fechaISO(0), hora: 9, cliente: 'Marco Jiménez', telefono: '88112233', precio: 15000, estado: 'activa' },
-  { cancha: 2, fecha: fechaISO(0), hora: 19, cliente: 'Sofía Araya', telefono: '87654321', precio: 20000, estado: 'activa' },
-  { cancha: 1, fecha: fechaISO(0), hora: 20, cliente: 'Los Tigres FC', telefono: '86001122', precio: 20000, estado: 'cancelada' },
-  { cancha: 2, fecha: fechaISO(1), hora: 8, cliente: 'Randall Solano', telefono: '83445566', precio: 15000, estado: 'activa' },
-  { cancha: 1, fecha: fechaISO(1), hora: 18, cliente: 'Equipo Amigos del Barrio', telefono: '89998877', precio: 18000, estado: 'activa' },
-  { cancha: 2, fecha: fechaISO(2), hora: 10, cliente: 'Marco Jiménez', telefono: '88112233', precio: 15000, estado: 'activa' },
-  { cancha: 1, fecha: fechaISO(-1), hora: 17, cliente: 'Kevin Mora', telefono: '84223344', precio: 15000, estado: 'activa' },
-  { cancha: 2, fecha: fechaISO(-2), hora: 21, cliente: 'Grupo Fútbol 5 Escazú', telefono: '87001199', precio: 20000, estado: 'cancelada' },
-  { cancha: 1, fecha: fechaISO(3), hora: 16, cliente: 'Marco Jiménez', telefono: '88112233', precio: 15000, estado: 'activa' },
-  { cancha: 2, fecha: fechaISO(4), hora: 12, cliente: 'Paola Vindas', telefono: '85667788', precio: 15000, estado: 'activa' },
-];
-
-for (const r of reservas) {
-  insertar.run(r);
-}
-
-console.log(`Base de datos recreada con ${reservas.length} reservas de ejemplo.`);
-db.close();
+principal().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

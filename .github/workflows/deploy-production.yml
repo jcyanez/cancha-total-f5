@@ -1,0 +1,201 @@
+# Entrega Continua a producción.
+#
+# La regla del caso está expresada en `needs:` y no en un comentario:
+#
+#     ci  ──✅──>  migrar  ──✅──>  desplegar  ──✅──>  verificar
+#      │
+#      └──❌──>  nada más corre.  No hay despliegue.
+#
+# Un job con `needs: ci` no arranca si `ci` falló. No hace falta un `if`, ni
+# una condición que alguien pueda ablandar: es la semántica del grafo. Y el CI
+# no está copiado acá: es el mismo archivo que corre en los pull requests,
+# invocado con `uses:`.
+#
+# Por qué GitHub Actions y no el auto-deploy de Vercel: Vercel puede desplegar
+# solo con cada push, pero entonces despliega ANTES de saber si las pruebas
+# pasaron, y la puerta deja de ser una puerta. Acá el despliegue lo dispara
+# explícitamente el pipeline, y solo después del CI.
+
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  # Para poder redesplegar sin inventar un commit.
+  workflow_dispatch:
+
+# Sin cancel-in-progress: un despliegue a medias no se aborta. Si entran dos
+# pushes, el segundo espera a que el primero termine.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- 1. CI ----
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  # ----------------------------------------------------- 2. Esquema Turso ----
+  # Antes de desplegar código nuevo, la base tiene que tener el esquema que ese
+  # código espera. Las migraciones son idempotentes y no llevan DROP: correrlas
+  # en cada despliegue no toca los datos.
+  migrar:
+    name: Migrar Turso
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Si faltan las credenciales, esto se detiene acá y lo dice. No se
+      # despliega una aplicación cuyo único almacén es Turso sin poder hablar
+      # con Turso: sería un despliegue verde sirviendo errores.
+      - name: Comprobar que los secretos estén configurados
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          faltan=""
+          [ -z "${TURSO_DATABASE_URL}" ] && faltan="${faltan} TURSO_DATABASE_URL"
+          [ -z "${TURSO_AUTH_TOKEN}" ]  && faltan="${faltan} TURSO_AUTH_TOKEN"
+          if [ -n "${faltan}" ]; then
+            echo "::error title=Faltan secretos::Configurá en GitHub → Settings → Secrets and variables → Actions:${faltan}"
+            exit 1
+          fi
+          echo "Los dos secretos de Turso están presentes. (No se imprime su valor.)"
+
+      - name: Aplicar migraciones
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: npm run db:migrate
+
+  # --------------------------------------------------------- 3. Despliegue ----
+  desplegar:
+    name: Desplegar a Vercel
+    needs: migrar
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.desplegar.outputs.url }}
+
+    # El token va por el entorno del job, no en la línea de comando: la CLI de
+    # Vercel lee VERCEL_TOKEN de ahí. Así el token no aparece nunca escrito en
+    # un comando, ni siquiera enmascarado.
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    outputs:
+      url: ${{ steps.desplegar.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Instalar la CLI de Vercel
+        run: npm install --global vercel@latest
+
+      # Que los tres secretos existan no dice que sirvan, y los errores de la CLI
+      # no nombran al culpable: con un token vencido o un ORG_ID de otra cuenta,
+      # `vercel pull` dice "User not found" tres pasos más adelante que la causa.
+      # El script interroga la API y dice cuál de los tres está mal.
+      - name: Comprobar las credenciales de Vercel
+        run: ./herramientas/comprobar-vercel.sh
+
+      # El vínculo lo hace la CLI y no un archivo escrito a mano: a mano hay que
+      # acertarle a un formato que puede cambiar entre versiones, y `vercel
+      # link` produce el que esta versión entiende. .vercel/ está en .gitignore.
+      - name: Vincular el proyecto de Vercel
+        run: ./herramientas/vincular-vercel.sh
+
+      # 1) pull: baja la configuración del proyecto y las variables de entorno
+      #    del entorno de producción, para que el build de acá sea el mismo que
+      #    haría Vercel.
+      - name: vercel pull
+        run: |
+          if ! vercel pull --yes --environment=production; then
+            echo ""
+            echo "--- reintento con --debug para ver qué llamada falla ---"
+            echo "--- (toda cadena de 24+ caracteres va tapada: puede haber un token) ---"
+            vercel pull --yes --environment=production --debug 2>&1 \
+              | sed -E 's/[A-Za-z0-9_.-]{24,}/***/g' | tail -60
+            exit 1
+          fi
+
+      # 2) build: compila el paquete acá, en el runner. Es lo que hace que el
+      #    despliegue del paso 3 sea `--prebuilt`: Vercel no vuelve a construir,
+      #    recibe lo ya construido. El artefacto que se sube es exactamente el
+      #    que este pipeline verificó.
+      - name: vercel build
+        run: vercel build --prod
+
+      # 3) deploy: sube el paquete ya construido y lo pone en producción.
+      - name: vercel deploy
+        id: desplegar
+        run: |
+          url=$(vercel deploy --prebuilt --prod)
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Desplegado en: ${url}"
+
+  # -------------------------------------------------------- 4. Verificación ----
+  # Que el despliegue haya terminado bien no dice que la aplicación funcione.
+  # Esto le pregunta a la URL pública, ya en producción, si llega a Turso.
+  verificar:
+    name: Verificar producción (Vercel → Turso)
+    needs: desplegar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Le da a la función un momento para su primer arranque en frío antes de
+      # empezar a exigirle respuestas.
+      - name: Esperar a que el despliegue esté servido
+        run: sleep 10
+
+      # La URL de producción es pública, así que normalmente no hace falta
+      # ninguna llave. Se pasa igual: si alguien activa la protección para todos
+      # los despliegues, esta verificación sigue funcionando.
+      - name: Interrogar /api/health y las pantallas
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node herramientas/humo.js "${{ needs.desplegar.outputs.url }}"
+
+      - name: Resumen del despliegue
+        if: always()
+        run: |
+          {
+            echo "### Despliegue a producción — ${{ job.status }}"
+            echo ""
+            echo "**URL:** ${{ needs.desplegar.outputs.url }}"
+            echo ""
+            echo '```text'
+            echo 'push a main -> CI -> migrar Turso -> vercel deploy --prod -> /api/health'
+            echo '```'
+            echo ""
+            echo "La verificación consulta \`/api/health\`, que hace una lectura real"
+            echo "contra Turso. Si la aplicación estuviera desplegada pero sin poder"
+            echo "hablar con su base, este job sería rojo."
+          } >> "$GITHUB_STEP_SUMMARY"

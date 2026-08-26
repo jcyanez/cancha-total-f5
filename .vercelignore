@@ -1,0 +1,24 @@
+# Lo que no tiene por qué viajar al despliegue.
+#
+# Importa por una razón concreta además del tamaño: pruebas/soporte/servidor.js
+# hace require('better-sqlite3'), que es un módulo nativo y una devDependency.
+# Si ese archivo viaja, el rastreador de dependencias de Vercel lo sigue y
+# arrastra el binario al paquete. Dejándolo afuera, la función lleva solo
+# @libsql/client, que es HTTP puro.
+#
+# database/ SÍ viaja: bd.js lee los .sql de database/migrations/ en el arranque.
+
+pruebas/
+herramientas/
+node_modules/
+
+# Documentación y evidencia del caso práctico.
+docs/
+*.md
+!README.md
+
+# La base local nunca; en producción los datos están en Turso.
+reservas.db
+reservas.db-*
+.env
+.env.*

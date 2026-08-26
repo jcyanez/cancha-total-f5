@@ -3,12 +3,25 @@
   "version": "1.0.0",
   "description": "Sistema de reservas para Cancha Total F5",
   "main": "server.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "start": "node server.js",
-    "datos": "node datos.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "datos": "node --env-file-if-exists=.env datos.js",
+    "db:migrate": "node --env-file-if-exists=.env database/migrar.js",
+    "db:seed": "node --env-file-if-exists=.env database/sembrar.js",
+    "lint": "eslint .",
+    "test": "node --test \"pruebas/*.test.js\"",
+    "humo": "node --env-file-if-exists=.env herramientas/humo.js",
+    "verificar-artefacto": "node herramientas/construir.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
+    "@libsql/client": "^0.15.15",
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^11.3.0",
+    "eslint": "^9.39.1"
   }
 }
