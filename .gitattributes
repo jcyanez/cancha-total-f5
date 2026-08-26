@@ -1,0 +1,11 @@
+# Fin de linea. Importa por una razon concreta y no por gusto: verificar.sh se
+# corre en el runner de Linux del pipeline, y un script con CRLF falla ahi con
+# "bad interpreter". Se fija LF para los scripts y para lo que consume una
+# herramienta, y se deja que el resto se normalice como siempre.
+
+* text=auto
+
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sql  text eol=lf
