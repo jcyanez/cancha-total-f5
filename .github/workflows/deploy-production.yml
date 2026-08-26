@@ -101,7 +101,10 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
     outputs:
-      url: ${{ steps.desplegar.outputs.url }}
+      # La que se verifica: el dominio público de producción.
+      url: ${{ steps.dominio.outputs.url }}
+      # La URL única e inmutable de este despliegue, para el resumen.
+      deployment: ${{ steps.desplegar.outputs.url }}
 
     steps:
       - uses: actions/checkout@v7
@@ -155,6 +158,36 @@ jobs:
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "Desplegado en: ${url}"
 
+      # Cada despliegue tiene DOS direcciones, y la diferencia importa:
+      #
+      #   la URL única      cancha-total-f5-exx4deopy-jcyanez1.vercel.app
+      #                     inmutable, apunta siempre a este despliegue, y la
+      #                     cubre la protección de despliegues de Vercel
+      #
+      #   el dominio        cancha-total-f5.vercel.app
+      #                     público, y apunta al despliegue de producción que
+      #                     esté vigente
+      #
+      # Lo que hay que verificar es el dominio, por dos razones: es lo que abre
+      # el usuario, y es lo que demuestra que el despliegue efectivamente quedó
+      # promovido a producción y no solo subido.
+      - name: Resolver el dominio público de producción
+        id: dominio
+        run: |
+          alias=$(curl -sS -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}" \
+            | jq -r '[ (.targets.production.alias // [])[], (.alias // [])[].domain ]
+                     | map(select(. != null and endswith(".vercel.app")))
+                     | sort_by(length) | first // empty')
+
+          if [ -z "${alias}" ]; then
+            echo "::warning title=Sin dominio de producción::La API no devolvió un alias *.vercel.app. Se verifica la URL única del despliegue, que puede estar protegida."
+            echo "url=${{ steps.desplegar.outputs.url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Dominio de producción: https://${alias}"
+            echo "url=https://${alias}" >> "$GITHUB_OUTPUT"
+          fi
+
   # -------------------------------------------------------- 4. Verificación ----
   # Que el despliegue haya terminado bien no dice que la aplicación funcione.
   # Esto le pregunta a la URL pública, ya en producción, si llega a Turso.
@@ -189,7 +222,9 @@ jobs:
           {
             echo "### Despliegue a producción — ${{ job.status }}"
             echo ""
-            echo "**URL:** ${{ needs.desplegar.outputs.url }}"
+            echo "**URL pública:** ${{ needs.desplegar.outputs.url }}"
+            echo ""
+            echo "**Este despliegue:** ${{ needs.desplegar.outputs.deployment }}"
             echo ""
             echo '```text'
             echo 'push a main -> CI -> migrar Turso -> vercel deploy --prod -> /api/health'
