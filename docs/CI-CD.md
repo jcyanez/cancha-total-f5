@@ -523,6 +523,33 @@ Y `vercel.json` manda todas las rutas a esa única función, porque el enrutamie
 { "rewrites": [{ "source": "/(.*)", "destination": "/api" }] }
 ```
 
+### Las tres decisiones de `vercel.json`
+
+El archivo tiene cuatro claves y ningún comentario. La falta de comentarios no es descuido:
+`vercel deploy` valida el esquema de forma estricta y **rechaza cualquier clave que no conozca** —
+incluida la convención `"//"` que se usa para comentar JSON. Curiosamente `vercel build` y `vercel
+pull` sí la aceptan, así que el error aparece recién en el último paso. Por eso las explicaciones
+viven acá.
+
+**`rewrites`** — todas las rutas van a `/api`. El enrutamiento lo hace Express, no Vercel.
+
+**`functions.api/index.js.maxDuration: 15`** — margen sobre los 10 s por omisión, para el primer
+arranque en frío, que además tiene que abrir la conexión a Turso.
+
+**`git.deploymentEnabled: false`** — apaga el auto-deploy de Vercel. Es la línea que hace *cierta*
+la afirmación de que el despliegue lo controla GitHub Actions: sin ella, Vercel también desplegaría
+por su cuenta con cada push, antes del CI, y habría dos caminos a producción de los cuales solo uno
+pasa por la puerta.
+
+**Y una decisión que NO está en este archivo, y por eso conviene nombrarla:** el script que verifica
+el artefacto se llama `verificar-artefacto` y no `build`. Vercel ejecuta automáticamente un script
+llamado exactamente `build` si lo encuentra en `package.json`, y después exige una carpeta de salida
+estática. La exigencia es razonable —un build que no produce archivos no tiene sentido para un
+sitio— pero esta aplicación no produce archivos: renderiza el HTML en cada pedido. Con el nombre
+`build`, el despliegue moría con `No Output Directory named "public" found` justo después de que el
+script terminara bien. La etapa del pipeline sigue llamándose Build; lo que cambió es el nombre del
+script.
+
 ---
 
 ## 8. Seguridad: por qué los secretos no van a Git
