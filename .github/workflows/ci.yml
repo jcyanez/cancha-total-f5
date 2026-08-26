@@ -82,7 +82,7 @@ jobs:
         run: npm test
 
       - name: Build (verificación del artefacto desplegable)
-        run: npm run build
+        run: npm run verificar-artefacto
 
       # Levanta el sistema y lo interroga de verdad: /api/health, la portada, y
       # una reserva de ida y vuelta. Contra la base local del runner.

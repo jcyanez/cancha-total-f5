@@ -1,4 +1,15 @@
-// Verificación del artefacto desplegable.  npm run build
+// Verificación del artefacto desplegable.  npm run verificar-artefacto
+//
+// No se llama `build` a propósito, y el nombre importa: Vercel ejecuta
+// automáticamente un script llamado exactamente `build` si lo encuentra en
+// package.json, y después exige una carpeta de salida estática. Es razonable
+// —un build que no produce archivos no tiene sentido para un sitio— pero esta
+// aplicación no produce archivos: renderiza el HTML en cada pedido. Con el
+// nombre `build`, el despliegue moría con «No Output Directory named "public"
+// found» justo después de que este script terminara bien.
+//
+// La etapa del pipeline sigue llamándose Build. Lo que cambió es el nombre del
+// script, no lo que verifica.
 //
 // Este proyecto no transpila nada: no hay bundler, no hay TypeScript, no hay
 // carpeta dist/. Poner un `build` que no haga nada para llenar una casilla del

@@ -12,6 +12,8 @@
     }
   },
 
+  "//buildCommand": "No hay build. Esta aplicación no produce archivos estáticos: es una función serverless que renderiza el HTML en cada pedido. Vercel corre automáticamente un script llamado exactamente 'build' si lo encuentra en package.json, y después exige una carpeta de salida estática -- razonable, porque un build que no produce archivos no tiene sentido para un sitio. Por eso el script que verifica el artefacto se llama 'verificar-artefacto' y no 'build': el nombre 'build' hacía que Vercel lo ejecutara y despues fallara con 'No Output Directory named public found'. La etapa del pipeline sigue llamandose Build; lo que cambio es el nombre del script, no lo que hace.",
+
   "git": {
     "//": "Apagado a propósito. Vercel puede desplegar solo con cada push, y si lo hiciera, desplegaría ANTES de saber si el CI pasó: la puerta dejaría de ser una puerta. El despliegue lo dispara GitHub Actions con la CLI, después del CI. Esta línea es lo que hace que eso sea cierto y no solo la intención.",
     "deploymentEnabled": false

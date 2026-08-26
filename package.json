@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "test": "node --test \"pruebas/*.test.js\"",
     "humo": "node --env-file-if-exists=.env herramientas/humo.js",
-    "build": "node herramientas/construir.js"
+    "verificar-artefacto": "node herramientas/construir.js"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

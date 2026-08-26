@@ -244,7 +244,7 @@ Las etapas:
 | Lint | `npm run lint` | Variables no declaradas, `await` olvidados, `catch` vacíos sin explicación. En JavaScript sin tipos, `no-undef` es lo único que separa `hoyISO()` de `hoyIS0()`. |
 | Typecheck | *(informativo)* | Nada: no aplica. Ver abajo. |
 | Test | `npm test` | Las 87 pruebas del negocio. Cada una levanta el sistema real como proceso hijo, con el reloj congelado y su propia base. |
-| Build | `npm run build` | Que el artefacto desplegable sea coherente. Ver abajo. |
+| Build | `npm run verificar-artefacto` | Que el artefacto desplegable sea coherente. Ver abajo. |
 | Humo | `npm run humo` | Que la aplicación arranque, conteste y **alcance su base de datos**. |
 
 **Sobre el typecheck.** El proyecto es JavaScript sin anotaciones de tipos: no hay TypeScript, ni

@@ -237,7 +237,7 @@ versionado.
 No hay build de compilación, ni bundler, ni carpeta de archivos estáticos: el HTML se arma en el
 servidor y la
 hoja de estilo viaja dentro de él, en la constante `ESTILOS` de `server.js`. Lo que sí verifica
-`npm run build` es que el artefacto desplegable sea coherente: que todo parsee, que la entrada
+`npm run verificar-artefacto` es que el artefacto desplegable sea coherente: que todo parsee, que la entrada
 serverless cargue, y que **ningún archivo de tiempo de ejecución dependa de una `devDependency`**.
 Esto último es lo que justifica el script: `better-sqlite3` es un módulo nativo que quedó como
 dependencia de desarrollo —lo usa el arnés de pruebas, no el sistema—, y si alguien vuelve a

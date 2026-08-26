@@ -38,7 +38,7 @@ etapa() {
 
 etapa "Lint"                npm run --silent lint
 etapa "Pruebas"             npm run --silent test
-etapa "Artefacto (build)"   npm run --silent build
+etapa "Artefacto (build)"   npm run --silent verificar-artefacto
 etapa "Humo"                npm run --silent humo
 
 echo ""
