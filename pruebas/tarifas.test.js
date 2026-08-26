@@ -31,8 +31,7 @@ test('la hora de las 17:00 cuesta 20.000 porque la luz ya está encendida', asyn
   // Falla si: el borde de la tarifa con luz no está en las 17:00.
   await conSistema(async (sistema) => {
     const cotizacion = await sistema.cotizar(17);
-    // ROTO A PROPOSITO (demostracion de la puerta de CI). Ver docs/CI-CD.md §10.
-    assert.equal(cotizacion.precio, 15000);
+    assert.equal(cotizacion.precio, 20000);
   });
 });
 
