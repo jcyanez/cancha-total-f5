@@ -35,8 +35,18 @@ function anotar(nombre, pasa, detalle) {
 // https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection
 const LLAVE_DE_PASO = (process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '').trim();
 
+// Va la cabecera de la llave y NADA MÁS. Vercel acepta además
+// `x-vercel-set-bypass-cookie`, y es una trampa para un cliente como este:
+// pide que además de dejar pasar el pedido, la respuesta plante una cookie —y
+// para plantarla, redirige—. Un navegador guarda la cookie, sigue el redirect
+// una vez y entra. `fetch` no tiene tarro de cookies: sigue el redirect, vuelve
+// a llegar sin la cookie, Vercel vuelve a redirigir, y así hasta que el propio
+// fetch se planta con «redirect count exceeded». Es un error de red, no de
+// autenticación, y por eso se veía como si el despliegue no existiera.
+//
+// La cabecera sola ya autoriza el pedido, que es todo lo que esta sonda quiere.
 const CABECERAS = LLAVE_DE_PASO
-  ? { 'x-vercel-protection-bypass': LLAVE_DE_PASO, 'x-vercel-set-bypass-cookie': 'true' }
+  ? { 'x-vercel-protection-bypass': LLAVE_DE_PASO }
   : {};
 
 // ¿Lo que volvió es la aplicación, o la pantalla de Vercel pidiendo credenciales?
