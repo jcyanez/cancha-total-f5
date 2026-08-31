@@ -57,6 +57,48 @@ async function pedir(base, camino, opciones = {}) {
   return { estado: respuesta.status, texto };
 }
 
+// Un despliegue recién creado tarda en volverse alcanzable: el nombre todavía
+// no resuelve en el runner, o el borde aún no tiene ruta hacia él. En ese hueco
+// `fetch` no contesta con un código de estado: falla a nivel de conexión, y su
+// mensaje es el inútil «fetch failed» —la causa real viaja en `error.cause`—.
+//
+// Esperar con un `sleep` fijo es una apuesta: si son diez segundos y hacen falta
+// doce, la puerta parpadea sin que haya cambiado nada del sistema. Esto espera a
+// que el despliegue conteste *algo* —la aplicación o el muro de Vercel, da igual
+// en este punto— y recién entonces empieza a interrogarlo.
+async function esperarQueConteste(base, { intentos = 12, esperaMs = 5000 } = {}) {
+  let ultimo;
+
+  for (let intento = 1; intento <= intentos; intento++) {
+    try {
+      await pedir(base, '/api/health');
+      if (intento > 1) console.log(`El despliegue contestó en el intento ${intento}.\n`);
+      return;
+    } catch (error) {
+      ultimo = error;
+      console.log(`  aún no contesta (${intento}/${intentos}): ${causaDe(error)}`);
+      if (intento < intentos) await new Promise((seguir) => setTimeout(seguir, esperaMs));
+    }
+  }
+
+  throw new Error(
+    `El despliegue no llegó a contestar en ${(intentos * esperaMs) / 1000} segundos: ` +
+    `${causaDe(ultimo)}. Esto no es la protección de Vercel —con ella la respuesta ` +
+    'llega igual, solo que es su pantalla de autenticación—: acá la conexión no se ' +
+    'establece. Suele ser el nombre del despliegue todavía sin resolver.'
+  );
+}
+
+// `fetch` envuelve todo error de red en un TypeError cuyo mensaje es siempre
+// «fetch failed»; lo que dice qué pasó está en `.cause`. Sin esto, un fallo de
+// DNS y uno de TLS se ven exactamente igual en el log.
+function causaDe(error) {
+  if (!error) return 'sin error';
+  const causa = error.cause;
+  if (!causa) return error.message;
+  return `${error.message} — ${causa.code || causa.message}`;
+}
+
 // --- Las comprobaciones ----------------------------------------------------
 
 async function interrogar(base, { escribir }) {
@@ -182,6 +224,7 @@ async function principal() {
   if (destinoRemoto) {
     const direccion = destinoRemoto.replace(/\/+$/, '');
     console.log(`Interrogando la aplicación desplegada: ${direccion}\n`);
+    await esperarQueConteste(direccion);
     await interrogar(direccion, { escribir: false });
   } else {
     const archivo = path.join(os.tmpdir(), `humo-${process.pid}.db`);
@@ -219,7 +262,7 @@ principal().then(
     process.exitCode = cuantasFallaron > 0 ? 1 : 0;
   },
   (error) => {
-    console.error(`La prueba de humo no pudo correr: ${error.message}`);
+    console.error(`La prueba de humo no pudo correr: ${causaDe(error)}`);
     process.exitCode = 1;
   }
 );
