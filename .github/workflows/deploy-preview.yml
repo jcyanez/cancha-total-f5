@@ -57,14 +57,29 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
+          cache: npm
 
-      - name: Instalar la CLI de Vercel
-        run: npm install --global vercel@latest
+      # La CLI de Vercel no se baja de la red con `@latest`. Está declarada como
+      # devDependency exacta (`"vercel": "59.10.0"`, sin `^` ni `~`) y fijada
+      # hasta sus dependencias transitivas en package-lock.json: `npm ci`
+      # reproduce mañana la misma CLI que hoy. Un despliegue no puede cambiar de
+      # herramienta sin que el cambio pase por un commit.
+      - name: Instalar dependencias (incluye la CLI de Vercel fijada)
+        run: npm ci
+
+      # Deja la CLI del proyecto primera en el PATH. Así `vercel` es la versión
+      # fijada tanto en estos pasos como dentro de los scripts de
+      # `herramientas/`, que la invocan por nombre.
+      - name: Usar la CLI de Vercel del proyecto
+        run: echo "${GITHUB_WORKSPACE}/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Declarar qué CLI se está usando
+        run: vercel --version
 
       # Mismo motivo que en deploy-production.yml: que un secreto exista no dice
       # que sirva, y los errores de la CLI no nombran al culpable.

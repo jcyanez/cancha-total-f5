@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "better-sqlite3": "^11.3.0",
-    "eslint": "^9.39.1"
+    "eslint": "^9.39.1",
+    "vercel": "59.10.0"
   }
 }
