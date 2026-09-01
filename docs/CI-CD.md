@@ -218,6 +218,49 @@ Dos piezas más que este pipeline usa y que conviene nombrar:
 Tres archivos. La decisión de fondo es que las etapas de verificación viven en uno solo y los
 otros dos lo llaman.
 
+### Reproducibilidad: nada del pipeline flota
+
+Un pipeline que se comporta distinto mañana sin que haya cambiado una línea del repositorio no es
+una puerta: es una consulta al azar. Dos cosas flotaban y las dos quedaron fijadas.
+
+**Las acciones, por SHA.** `actions/checkout@v7` es un *puntero móvil*: `v7` es una etiqueta de Git,
+y quien controla ese repositorio puede reapuntarla a otro commit cuando quiera. El pipeline
+ejecutaría código distinto sin que este repositorio cambie —y esas acciones corren con acceso al
+token del workflow. Las ocho referencias externas apuntan ahora al SHA completo, con la versión
+humana en un comentario al lado:
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+- uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+```
+
+Los dos SHA se resolvieron contra la API de GitHub (`gh api repos/actions/checkout/git/ref/tags/v7`),
+no se copiaron de la salida de un log. `uses: ./.github/workflows/ci.yml` se queda como está: es una
+referencia local, resuelta en el mismo commit que la usa, y no hay nada que fijar.
+
+**La CLI de Vercel, por versión exacta.** Los jobs de despliegue hacían
+`npm install --global vercel@latest`. La herramienta que construye y sube el artefacto de producción
+cambiaba sola de versión entre un despliegue y el siguiente. Ahora es una devDependency exacta —sin
+`^` ni `~`— fijada hasta sus dependencias transitivas en el `package-lock.json`:
+
+```json
+"devDependencies": { "vercel": "59.10.0" }
+```
+
+Los jobs la instalan con `npm ci` y ponen `node_modules/.bin` primero en el `PATH`. Así `vercel` es
+la versión fijada tanto en los pasos del YAML como dentro de los scripts de `herramientas/`, que la
+invocan por nombre y no hubo que tocar. El paso *"Declarar qué CLI se está usando"* imprime
+`vercel --version` en cada corrida, para que la versión quede en el log y no haya que confiar.
+
+Entra como **devDependency** y no como dependencia de ejecución: no viaja en el artefacto
+desplegado, y `npm audit --omit=dev --audit-level=high` sigue dando cero.
+
+> Un matiz honesto: fijar la CLI en el lockfile hace visibles los avisos de `npm audit` del árbol de
+> dependencias de la propia CLI de Vercel (todos en `devDependencies`, ninguno en producción). Esos
+> avisos ya existían con `@latest` —simplemente no estaban en el lockfile y `npm audit` no los veía.
+> Fijar la versión no agregó riesgo; hizo visible el que ya había, y lo dejó donde un commit puede
+> moverlo.
+
 ### `ci.yml` — la definición de "está bien"
 
 Se dispara con:
@@ -653,45 +696,119 @@ efímero de `/tmp`, ese job se pondría rojo.
 
 ---
 
-## 10. Prueba del pipeline fallido
+## 10. La puerta: `main` protegida y la demostración rojo → verde
 
-El objetivo es demostrar que el CI **protege** producción, no que sabe fallar.
+El objetivo es demostrar que el CI **protege** producción, no que sabe fallar. Y que la protección
+es una precondición del repositorio, no una costumbre del equipo.
 
-```text
-Rama aparte:  demo/ci-falla
+### 10.1 La política de `main`
 
-1.  Se rompe una prueba a propósito, en una rama, nunca en main
-        ↓
-2.  git push origin demo/ci-falla
-        ↓
-3.  GitHub → Actions → "CI" arranca
-        ↓
-4.  Etapa "Pruebas"   ❌  la aserción falla, con el valor esperado y el obtenido
-        ↓
-5.  El job queda rojo
-        ↓
-6.  NO HAY DESPLIEGUE. Ni preview, ni producción.
-        ↓
-7.  Producción sigue sirviendo la última versión buena. Intacta.
-        ↓
-8.  Se revierte el cambio y el CI vuelve a verde
+Configurada por API (`gh api -X PUT .../branches/main/protection`), no desde la interfaz, para que
+quede como un comando reproducible y no como una casilla que alguien recuerda haber marcado.
+
+| Propiedad | Valor | Por qué |
+|---|---|---|
+| Pull request obligatorio | sí | No se puede empujar a `main`. Todo cambio pasa por un PR. |
+| Aprobaciones requeridas | **0** | El propietario no puede aprobar su propio PR, y la consigna no exige una segunda persona. La puerta la hace el CI, no una firma. |
+| Status check obligatorio | `Lint · Pruebas · Build · Humo` | El nombre exacto del check. Sin él en verde, el botón de fusionar está cerrado. |
+| Rama al día antes de fusionar | `strict = true` | Impide fusionar algo que nunca se probó contra el `main` actual. |
+| Reglas aplicadas a administradores | `enforce_admins = true` | **El dueño del repositorio tampoco puede saltarla.** Sin esto, la protección es decorativa en un repo de una sola persona. |
+| Resolución de conversaciones | requerida | |
+| Force-push | deshabilitado | La historia no se reescribe. |
+| Borrado de la rama | deshabilitado | |
+| Actores de bypass | ninguno | `restrictions: null`, sin excepciones administrativas. |
+
+Se comprueba leyendo la API de vuelta, no confiando en que el `PUT` respondió 200:
+
+```bash
+gh api repos/jcyanez/cancha-total-f5/branches/main --jq '.protected'
+# true
+
+gh api repos/jcyanez/cancha-total-f5/branches/main/protection --jq '{
+  enforce_admins: .enforce_admins.enabled,
+  checks: .required_status_checks.contexts,
+  strict: .required_status_checks.strict,
+  force_push: .allow_force_pushes.enabled,
+  borrado: .allow_deletions.enabled
+}'
+# {"enforce_admins":true,"checks":["Lint · Pruebas · Build · Humo"],
+#  "strict":true,"force_push":false,"borrado":false}
 ```
 
-Los pasos 6 y 7 son el punto entero del ejercicio. No es que "el CI avisó": es que **el despliegue
-no ocurrió**, porque `needs: ci` no se cumplió, y por lo tanto los jobs de despliegue no llegaron
-a existir. La protección no es una alarma que alguien tiene que atender; es una precondición.
+La protección **no se prueba intentando violarla**. Un push directo a `main` para "ver si rebota"
+es exactamente el evento que la política existe para impedir, y dejaría un intento fallido en el
+historial de referencias. La evidencia es la lectura de la API y el PR bloqueado.
 
-Y el paso 1 importa: se hace **en una rama**, no en `main`. La rama principal no se rompe para
-demostrar nada.
+### 10.2 Por qué la demostración anterior no alcanzaba
 
-Qué romper. La opción más limpia y más legible en el log es cambiar un número esperado en una
-prueba de tarifa — por ejemplo, que las 17:00 cuesten ₡15.000 en vez de ₡20.000. El fallo sale con
-el esperado y el obtenido al lado, se entiende de un vistazo, y no toca código de producción.
+La primera versión de este documento demostraba el CI rojo con un push a la rama `demo/ci-falla` y
+su revert. Eso prueba dos cosas ciertas —que el CI corre y que se pone rojo— pero **no** prueba la
+que el caso pide:
 
-> **Nota metodológica.** En el caso práctico original, una prueba en rojo era un *hallazgo* del
-> sistema y estaba prohibido ablandarla. Acá es lo contrario y a propósito: la prueba se rompe
-> deliberadamente para exhibir la puerta, en una rama que nunca se fusiona. Son dos actividades
-> distintas y conviene no confundirlas al presentar el trabajo.
+> que un cambio en rojo no pueda entrar a `main`.
+
+Un push a una rama suelta no lo bloquea ninguna protección: no hay nada que bloquear, porque nadie
+estaba fusionando nada. La rama `demo/ci-falla` se conserva como evidencia histórica, pero la
+demostración válida es la de abajo, y ocurre **dentro de un pull request, con `main` ya protegida**.
+
+### 10.3 La transición, dentro del PR [#2](https://github.com/jcyanez/cancha-total-f5/pull/2)
+
+```text
+                    main protegida · check obligatorio · enforce_admins
+                                        │
+1.  commit 65f5c90  ──►  prueba temporal que falla a propósito
+        │
+        ├─ CI (evento pull_request)   ❌  88 pruebas · 87 pasan · 1 falla
+        ├─ Estado del PR              🔒  BLOCKED — no se puede fusionar
+        └─ Desplegar preview          ⏭️  skipped: `needs: ci` no se cumplió
+                                        │
+                                   NO HAY DESPLIEGUE
+                                        │
+2.  commit 6f4921e  ──►  el archivo temporal se borra por completo
+        │
+        ├─ CI (evento pull_request)   ✅  87 pruebas · 87 pasan
+        └─ El check obligatorio queda satisfecho
+```
+
+| | Commit | Corrida (evento `pull_request`) | Resultado |
+|---|---|---|---|
+| **Rojo** | [`65f5c90`](https://github.com/jcyanez/cancha-total-f5/pull/2/commits/65f5c90a5b9e14b6d2048bb77f0e86aab2086d01) | [runs/33446508303](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446508303) | `# tests 88 · # pass 87 · # fail 1` — PR `BLOCKED` |
+| **Verde** | [`6f4921e`](https://github.com/jcyanez/cancha-total-f5/pull/2/commits/6f4921e9bd84ef7653a2d6c00d2865469a8d5898) | [runs/33446710929](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446710929) | `# tests 87 · # pass 87 · # fail 0` |
+
+La corrida del preview durante el rojo —[runs/33446508659](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446508659)—
+muestra el job `Desplegar preview` en `skipping`. Ese es el punto entero del ejercicio: no es que
+"el CI avisó", es que **el despliegue no llegó a existir**, porque `needs: ci` no se cumplió. La
+protección no es una alarma que alguien tiene que atender; es una precondición.
+
+### 10.4 Qué se rompió, y por qué así
+
+La prueba temporal vivió en un archivo propio y declarado, `pruebas/demostracion-puerta-ci.test.js`,
+con una aserción aritmética falsa (`2 + 2 === 5`). Ninguna de las 87 pruebas originales se tocó: la
+suite pasó a 88 y volvió a 87.
+
+Se eligió una igualdad aritmética y no un valor de tarifa por una razón: la corrida roja no deja
+ninguna duda sobre su causa. No hay red, ni reloj, ni base de datos, ni orden de pruebas de por
+medio. Lo único que puede hacerla fallar es que esté escrita para fallar.
+
+El commit verde **borra el archivo**. No ablanda la aserción, no lo deja como prueba trivial
+permanente, no lo marca como `skip`.
+
+> **Nota metodológica.** En el Caso práctico 5, una prueba en rojo era un *hallazgo* del sistema y
+> estaba prohibido ablandarla o borrarla. Acá es lo contrario y a propósito: la prueba se escribe
+> para fallar, con el único fin de exhibir la puerta, y se borra en el commit siguiente. Son dos
+> actividades distintas y conviene no confundirlas al presentar el trabajo.
+
+### 10.5 Un commit directo en `main`, anterior a la protección
+
+`main` tiene un commit directo en su historia:
+[`d4fa9f9`](https://github.com/jcyanez/cancha-total-f5/commit/d4fa9f9a8c16ee74e10f91101b45a2522c59e298)
+— *"Producción se verifica en su dominio público, no en la URL del despliegue"*.
+
+No se oculta y no se reescribe. Ocurrió **antes** de que la protección existiera, cuando empujar a
+`main` era técnicamente posible. Reescribir la historia para que no se vea sería peor que el commit:
+borraría la evidencia de cuándo empezó a regir la política. Desde que la protección está activa, la
+única forma de mover `main` es un pull request con el check obligatorio en verde —y eso incluye al
+dueño del repositorio.
 
 ---
 
@@ -708,8 +825,9 @@ en la imagen.
 | 4 | **CI en verde** | Actions → una corrida exitosa | Los pasos con tilde verde, y el tiempo de cada uno |
 | 5 | Detalle de las pruebas | Actions → paso "Pruebas" desplegado | `# pass 87` y `# fail 0` |
 | 6 | **Grafo del deploy** | Actions → "Deploy Production" | Los cuatro jobs encadenados: CI → Migrar → Desplegar → Verificar |
-| 7 | **Action fallida** | Actions → la corrida de `demo/ci-falla` | La X roja en "Pruebas" **y que no haya jobs de despliegue** |
-| 8 | Comparación lado a lado | Actions, lista de corridas | Una roja y una verde, para que se vea el contraste |
+| 7 | **PR bloqueado en rojo** | [PR #2](https://github.com/jcyanez/cancha-total-f5/pull/2), commit `65f5c90` | La X roja en el check obligatorio, `Desplegar preview` en *skipping*, y el botón de fusionar cerrado con el aviso de la protección |
+| 7b | **Protección de `main`** | Settings → Branches, o la salida de `gh api .../branches/main/protection` | `enforce_admins: true`, el check `Lint · Pruebas · Build · Humo` como requerido, force-push y borrado deshabilitados |
+| 8 | Rojo y verde en el mismo PR | [PR #2](https://github.com/jcyanez/cancha-total-f5/pull/2) → Commits | Los dos commits seguidos, uno con X y el siguiente con tilde |
 | 9 | **GitHub Secrets** | Settings → Secrets and variables → Actions | **Solo los nombres.** Los valores no se pueden mostrar y no hay que intentarlo |
 | 10 | Proyecto en Vercel | Dashboard de Vercel | El proyecto, con su último deployment en "Ready" |
 | 11 | Deployments de Vercel | Vercel → Deployments | La lista, con Production y Preview distinguidos |
@@ -722,7 +840,8 @@ en la imagen.
 | 18 | Health check | `https://<proyecto>.vercel.app/api/health` | `"status":"ok"`, `"database":"connected"`, `"backend":"turso"` |
 | 19 | Preview en un PR | Un pull request abierto | El comentario del bot con la URL del preview, y el CI en verde arriba |
 
-Las que más peso tienen para la rúbrica son la **7** (que el despliegue no ocurrió), y el par
+Las que más peso tienen para la rúbrica son la **7** (que el despliegue no ocurrió y que el PR
+quedó bloqueado), y el par
 **16 + 17** juntas: la misma reserva vista en el panel de Turso y en la aplicación pública es la
 prueba de que el flujo Vercel → Turso está realmente conectado y no simulado.
 

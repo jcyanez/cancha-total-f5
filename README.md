@@ -3,6 +3,9 @@
 [![CI](https://github.com/jcyanez/cancha-total-f5/actions/workflows/ci.yml/badge.svg)](https://github.com/jcyanez/cancha-total-f5/actions/workflows/ci.yml)
 [![Deploy Production](https://github.com/jcyanez/cancha-total-f5/actions/workflows/deploy-production.yml/badge.svg)](https://github.com/jcyanez/cancha-total-f5/actions/workflows/deploy-production.yml)
 
+**En vivo: <https://cancha-total-f5.vercel.app>** · salud de la base:
+<https://cancha-total-f5.vercel.app/api/health>
+
 Sistema de reservas para las dos canchas techadas de fútbol 5 de Cancha Total F5.
 Permite ver la disponibilidad del día, registrar reservas y cancelarlas.
 
@@ -107,6 +110,26 @@ Los nombres están en [.env.example](.env.example), sin valores. Para trabajar e
 `.env` y se llena; `npm start` y los scripts de base de datos lo leen solos, con
 `--env-file-if-exists` de Node. `.env` está en `.gitignore` y no se sube nunca.
 
+### Dónde vive cada variable
+
+Las mismas dos variables de Turso están cargadas en **dos lugares distintos, que no se hablan entre
+sí**, y confundirlos es la causa más común de "funciona el pipeline pero la app da error":
+
+| | GitHub Actions Secrets | Vercel Environment Variables |
+|---|---|---|
+| Quién las lee | Los **workflows**, mientras corren en el runner | La **aplicación desplegada**, en tiempo de ejecución |
+| Para qué acá | Aplicar migraciones a Turso, y autenticar la CLI de Vercel | Que la app conecte a Turso al atender un pedido |
+| Dónde se cargan | Settings → Secrets and variables → Actions | Vercel → Project Settings → Environment Variables |
+| Qué contiene | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_AUTOMATION_BYPASS_SECRET` | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` |
+
+Cargar el token de Turso solo en GitHub deja el despliegue verde y la aplicación sirviendo errores:
+el workflow pudo migrar, pero la función desplegada no tiene con qué conectarse. Cargarlo solo en
+Vercel deja la app funcionando y el job de migraciones rojo. Hacen falta los dos.
+
+Ninguno de esos valores aparece en el repositorio, en un log ni en este README: lo único versionado
+son los **nombres**, en [.env.example](.env.example). El detalle está en
+[docs/CI-CD.md § 8](docs/CI-CD.md).
+
 **El orden de precedencia de la base importa:** `CANCHA_BD` gana sobre `TURSO_DATABASE_URL`. Quien
 nombra un archivo concreto está pidiendo ese archivo, y quien lo hace siempre es el arnés de
 pruebas. Si Turso ganara, bastaría con tener `TURSO_DATABASE_URL` exportada en la terminal para que
@@ -169,7 +192,53 @@ La regla del despliegue está en el grafo de dependencias, no en un comentario: 
 de Vercel justamente por eso — el auto-deploy publica antes de saber si las pruebas pasaron.
 
 El CI corre contra un archivo temporal del runner y **no recibe los secretos de Turso**: no tiene
-con qué tocar la base de producción.
+con qué tocar la base de producción. La puerta funciona sin ningún servicio externo.
+
+Nada del pipeline flota: las ocho referencias a acciones externas están fijadas al **SHA completo**
+(`actions/checkout@3d3c42e…` `# v7`) en vez de a la etiqueta móvil `@v7`, y la CLI de Vercel es una
+devDependency **exacta** (`59.10.0`, sin `^` ni `~`) fijada en el `package-lock.json`, en vez de
+`vercel@latest`.
+
+### La política de `main`
+
+`main` está protegida. **No se puede empujar a `main`**, ni siquiera siendo el dueño del
+repositorio:
+
+| Regla | Estado |
+|---|---|
+| Pull request obligatorio | sí |
+| Aprobaciones requeridas | 0 — la puerta la hace el CI, no una firma |
+| Check obligatorio | **`Lint · Pruebas · Build · Humo`** |
+| Rama al día antes de fusionar | sí (`strict`) |
+| Aplicada a administradores | **sí** (`enforce_admins`) |
+| Force-push · borrado de la rama | deshabilitados |
+| Actores de bypass | ninguno |
+
+Se comprueba leyendo la API, no la interfaz:
+
+```
+gh api repos/jcyanez/cancha-total-f5/branches/main/protection \
+  --jq '{admins:.enforce_admins.enabled, checks:.required_status_checks.contexts}'
+```
+
+La demostración de que la puerta cierra y abre está **dentro de un mismo pull request**, el
+[#2](https://github.com/jcyanez/cancha-total-f5/pull/2):
+
+| | Commit | Corrida `pull_request` | Resultado |
+|---|---|---|---|
+| Rojo | `65f5c90` | [runs/33446508303](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446508303) | 88 pruebas, 1 falla · PR **BLOCKED** · preview *skipped* |
+| Verde | `6f4921e` | [runs/33446710929](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446710929) | 87 pruebas, 87 pasan |
+
+El preview del PR también quedó verde —[runs/33451632482](https://github.com/jcyanez/cancha-total-f5/actions/runs/33451632482),
+**10/10** con `backend=turso`—, después de corregir dos defectos de la sonda de humo y de cargar las
+variables de Turso en el entorno *Preview* de Vercel. La historia completa está en
+[docs/ENTREGA-CASO-6.md § 3](docs/ENTREGA-CASO-6.md).
+
+`main` tiene además un commit directo histórico,
+[`d4fa9f9`](https://github.com/jcyanez/cancha-total-f5/commit/d4fa9f9a8c16ee74e10f91101b45a2522c59e298),
+**anterior a la activación de la protección**. No se oculta ni se reescribe: borrarlo eliminaría la
+evidencia de cuándo empezó a regir la política. El detalle está en
+[docs/CI-CD.md § 10](docs/CI-CD.md).
 
 **Todo el detalle está en [docs/CI-CD.md](docs/CI-CD.md)**: qué es CI, qué es CD y cuál se usa acá,
 el vocabulario de GitHub Actions, la explicación de cada YAML, la diferencia entre GitHub Secrets y
@@ -178,7 +247,7 @@ las variables de entorno de Vercel, y la lista de evidencias para la entrega.
 ### Comprobar el despliegue
 
 ```
-curl https://<proyecto>.vercel.app/api/health
+curl https://cancha-total-f5.vercel.app/api/health
 ```
 
 ```json
@@ -189,7 +258,7 @@ Hace una lectura real contra la base. No devuelve la URL de la base ni el token,
 humo verifica activamente que no los filtre.
 
 ```
-node herramientas/humo.js https://<proyecto>.vercel.app
+node herramientas/humo.js https://cancha-total-f5.vercel.app
 ```
 
 Interroga una aplicación ya desplegada: la salud, las pantallas, la cotización. Contra una URL
@@ -209,6 +278,9 @@ El sistema se recibió sin un solo documento. Estos se escribieron reconstruyén
 - **[STATUS.md](STATUS.md)** — el estado del trabajo.
 - **[docs/CI-CD.md](docs/CI-CD.md)** — el pipeline de integración y despliegue continuo, explicado
   de cero. Posterior a la entrega del caso.
+- **[docs/ENTREGA-CASO-6.md](docs/ENTREGA-CASO-6.md)** — la matriz requisito → evidencia del Caso
+  práctico 6, con el enlace real de cada comprobación y el estado honesto de lo que no se pudo
+  verificar.
 
 ## Cómo está armado
 
