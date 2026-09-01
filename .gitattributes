@@ -9,3 +9,11 @@
 *.yml  text eol=lf
 *.yaml text eol=lf
 *.sql  text eol=lf
+
+# Las imagenes son binarias y se declara, no se deduce. `text=auto` acierta por
+# heuristica, pero un PNG al que se le "normalicen" los fines de linea llega
+# corrupto al despliegue, y el sintoma seria una imagen rota en produccion.
+*.png  binary
+*.jpg  binary
+*.webp binary
+*.ico  binary
