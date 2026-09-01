@@ -562,6 +562,29 @@ tr:last-child { background-image: none; }
   color: var(--ocupado);
 }
 
+/* El bloque ocupado late. Es la única fila de la grilla sobre la que no se
+   puede hacer nada, y en catorce filas casi iguales conviene que se note sin
+   tener que leerlas una por una.
+
+   El latido va en el fondo de la píldora -su ::after-, nunca en el texto:
+   bajarle la opacidad a la palabra "Ocupado" le bajaría el contraste, y la
+   señal terminaría costando legibilidad en vez de darla. Y sigue sin ser la
+   única señal: el texto y el icono ya estaban, el movimiento solo los
+   acompaña.
+
+   El ciclo es de 1,8 s, bastante más lento que los tres destellos por segundo
+   que el criterio 2.3.1 de WCAG pone como techo, y el fondo no llega a
+   apagarse: oscila entre opaco y medio, así que la píldora nunca desaparece.
+   Quien pide menos movimiento no ve nada de esto —el bloque de
+   prefers-reduced-motion, más abajo, apaga toda animación del documento. */
+@keyframes latido-ocupado {
+  50% { opacity: 0.45; }
+}
+
+.grilla td.ocupado::after {
+  animation: latido-ocupado 1.8s ease-in-out infinite;
+}
+
 .lista td.estado-cancelada {
   --fondo-pildora: var(--anulado-fondo);
   color: var(--anulado);
