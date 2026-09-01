@@ -5,7 +5,8 @@
   ],
   "functions": {
     "api/index.js": {
-      "maxDuration": 15
+      "maxDuration": 15,
+      "includeFiles": "public/**"
     }
   },
   "git": {

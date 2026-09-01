@@ -4,6 +4,7 @@
 // sabe si los datos están en un archivo o al otro lado de la red.
 
 const express = require('express');
+const path = require('node:path');
 const bd = require('./bd.js');
 
 // Configuración. Los valores por omisión son los de siempre: el sistema sin
@@ -21,6 +22,22 @@ function ahora() {
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Los archivos de public/ se sirven tal cual: hoy es el logo de la marca.
+//
+// Va montado en la aplicación y no delegado al servidor de estáticos de Vercel
+// a propósito. `vercel.json` reescribe TODAS las rutas a esta función, así que
+// el camino garantizado —el que se comporta igual en la portátil y en el
+// despliegue— es que la función también sepa servirlos. Si además Vercel los
+// resuelve antes por su propio sistema de archivos, mejor: se ahorra una
+// invocación y el resultado es el mismo archivo.
+//
+// El logo no cambia de contenido sin cambiar de nombre, así que se puede
+// cachear con ganas: se baja una vez y no vuelve a pedirse.
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '365d',
+  immutable: true,
+}));
 
 // El esquema tiene que estar antes de la primera consulta. En un servidor de
 // siempre eso pasa al arrancar; en una función serverless, en el primer pedido
@@ -386,15 +403,35 @@ p { margin: 0 0 var(--e-4); }
   padding: var(--e-4);
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  /* Centrado y no baseline: la línea base de una imagen es su borde inferior,
+     así que con el logo puesto el menú quedaba colgado del pie del logo en vez
+     de a su altura. */
+  align-items: center;
   gap: var(--e-2) var(--e-5);
 }
 
+/* La marca es el logo. El <h1> se queda: le da al encabezado su nivel
+   semántico, y el alt de la imagen le presta el nombre accesible, así que un
+   lector de pantalla sigue anunciando "Cancha Total F5, título de nivel 1".
+   El display:flex saca el hueco que el navegador reserva bajo una imagen en
+   línea para los descendientes de la tipografía. */
 .marca {
   margin: 0;
-  font-size: var(--texto-xl);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  display: flex;
+}
+
+/* Alto fijo y ancho automático: la proporción 3:1 del archivo original manda,
+   y la imagen no se deforma ni se recorta. Los atributos width/height del
+   <img> llevan las medidas intrínsecas, así que el navegador reserva el hueco
+   correcto antes de bajarla y la página no salta. */
+.marca img {
+  display: block;
+  height: 2.375rem;
+  width: auto;
+}
+
+@media (min-width: 40rem) {
+  .marca img { height: 3rem; }
 }
 
 .tablero nav {
@@ -888,7 +925,7 @@ function layout(titulo, contenido) {
 <a class="saltar" href="#contenido">Ir al contenido</a>
 <header class="tablero">
   <div class="tablero-interior">
-    <h1 class="marca">Cancha Total F5</h1>
+    <h1 class="marca"><img src="/branding/cancha-total-f5-logo.png" alt="Cancha Total F5" width="2172" height="724"></h1>
     <nav aria-label="Secciones">
       <a href="/">Inicio</a>
       <a href="/disponibilidad/cancha1">Cancha 1</a>
