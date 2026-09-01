@@ -11,17 +11,17 @@ al lado **cómo se comprobó** y **el enlace real** de la comprobación, con un 
 | `NOT_VERIFIED` | No se pudo comprobar. La columna dice qué haría falta. |
 | `N/A` | No aplica a este stack. |
 
-**Recomendación final: `CONDITIONAL`** — los 24 requisitos que dependen del repositorio y del
-pipeline están verdes y verificados. Quedan tres `PARTIAL`, y ninguno se puede cerrar desde este
-repositorio:
+**Recomendación final: `READY`** — 26 requisitos `VERIFIED_PASS`, 1 `PARTIAL` y 1 `N/A`. No queda
+ninguno en `VERIFIED_FAIL` ni en `NOT_VERIFIED`.
 
-| | Qué falta | Dónde se arregla |
-|---|---|---|
-| § 3 | `TURSO_AUTH_TOKEN` en el entorno **Preview** | Consola de Vercel |
-| § 4 | Una base Turso desechable para correr la suite completa | Consola de Turso + autorización |
-| § 5 | Rotar un secreto mal cargado | Consola de Vercel + GitHub |
+El único `PARTIAL` es el **§ 4**: las 87 pruebas corren contra libSQL local, no contra una base
+Turso remota. No es una tarea pendiente sino una decisión deliberada y explicada — correr una suite
+destructiva contra una base remota exigiría una base desechable aparte, y haría que la puerta de CI
+dependiera de un servicio externo. Contra Turso sí corre una verificación remota de solo lectura, en
+el preview y en producción.
 
-Ninguno de los tres afecta el check requerido para fusionar, ni la cadena que protege producción.
+Queda además una **recomendación de infraestructura**, no un defecto: el entorno *Preview* parece
+compartir la base de Turso con producción (§ 3, última sección).
 
 ---
 
@@ -53,9 +53,9 @@ Ninguno de los tres afecta el check requerido para fusionar, ni la cadena que pr
 | 22 | Ninguna credencial expuesta en el repositorio | `VERIFIED_PASS` | 130 blobs de **toda la historia** inspeccionados contra 6 familias de patrones: sin coincidencias. `.env` y `.vercel/` nunca estuvieron rastreados. |
 | 23 | Dependencias de producción sin vulnerabilidades altas | `VERIFIED_PASS` | `npm audit --omit=dev --audit-level=high` → `found 0 vulnerabilities` |
 | 24 | Árbol de trabajo limpio | `VERIFIED_PASS` | `git status --short` → vacío |
-| 25 | **Preview del PR en verde** | `PARTIAL` | El preview **se despliega**, y desde este PR se atraviesa su autenticación (dos defectos reales corregidos). Queda rojo porque el entorno *Preview* de Vercel no tiene `TURSO_AUTH_TOKEN`. Ver § 3. |
+| 25 | **Preview del PR en verde** | `VERIFIED_PASS` | [runs/33451632482](https://github.com/jcyanez/cancha-total-f5/actions/runs/33451632482) → **10/10**, `status=ok`, `database=connected`, `backend=turso`. Hicieron falta dos defectos corregidos y las variables de Turso en el entorno *Preview*. Ver § 3. |
 | 26 | **Las 87 pruebas contra Turso** | `PARTIAL` | Suite completa contra libSQL local + prueba remota de solo lectura contra Turso. Ver § 4. |
-| 27 | Higiene de secretos del repositorio | `PARTIAL` | Un secreto mal cargado, a rotar. Ver § 5. |
+| 27 | Higiene de secretos del repositorio | `VERIFIED_PASS` | El secreto mal cargado fue **borrado**. Quedan los seis nombres correctos y ninguno sobrante. Ver § 5. |
 | 28 | Typecheck | `N/A` | El proyecto es JavaScript sin anotaciones de tipos. Declarado como no aplicable en `ci.yml`, sin fingir una casilla verde. |
 
 ---
@@ -80,97 +80,94 @@ temporal de demostración y el siguiente lo borró.
 
 ---
 
-## 3. Requisito 25 — el preview del PR
+## 3. Requisito 25 — el preview del PR *(resuelto)*
 
-Este punto se persiguió hasta el fondo y se arreglaron **dos defectos reales** en el camino. Vale
-la pena contarlo por capas, porque cada capa se creyó "la causa" hasta que la siguiente apareció.
+**Estado final: verde, 10/10.**
+Corrida: [runs/33451632482](https://github.com/jcyanez/cancha-total-f5/actions/runs/33451632482).
 
-### Capa 1 — faltaba la llave de paso *(resuelta)*
+```text
+OK    /api/health responde 200                       estado=200
+OK    /api/health dice status 'ok'                   status=ok
+OK    /api/health dice database 'connected'          backend=turso reservas=1
+OK    la aplicación desplegada usa Turso, no un archivo
+OK    /api/health no filtra URL ni token
+OK    la portada responde 200 · trae la marca · trae la grilla de bloques
+OK    la lista del día consulta la base
+OK    /api/cotizar cotiza el bloque con luz          precio=20000
+
+10/10 comprobaciones pasaron.
+```
+
+Llegar acá tomó tres capas, y vale la pena dejarlas escritas porque **dos eran defectos reales de
+este repositorio**, no configuración: cada una se creyó "la causa" hasta que apareció la siguiente.
+
+### Capa 1 — faltaba la llave de paso
 
 Los despliegues de vista previa están detrás de **Vercel Authentication**: un pedido anónimo recibe
 la pantalla de autenticación en vez de la aplicación. El workflow ya pasaba
-`VERCEL_AUTOMATION_BYPASS_SECRET`, pero el secreto no existía en el repositorio y llegaba vacío.
+`VERCEL_AUTOMATION_BYPASS_SECRET`, pero el secreto no existía y llegaba vacío.
 Corrida: [runs/33447313168](https://github.com/jcyanez/cancha-total-f5/actions/runs/33447313168).
 
-Se configuró la llave. **Resuelto.**
+Se generó la llave en Vercel y se cargó con ese nombre exacto. **Resuelto.**
 
-### Capa 2 — la sonda pedía una cookie que no puede guardar *(defecto real, corregido)*
+### Capa 2 — la sonda pedía una cookie que no puede guardar *(defecto corregido)*
 
 Con la llave puesta, el paso pasó a fallar con `fetch failed`, a secas. Ese mensaje no dice nada:
 `fetch` envuelve **todo** error de red en un `TypeError` cuyo mensaje es siempre ése, y lo que
-explica qué pasó viaja en `error.cause`, que nadie estaba leyendo. Un fallo de DNS y uno de TLS se
-veían idénticos en el log.
+explica qué pasó viaja en `error.cause`, que nadie leía. Un fallo de DNS y uno de TLS se veían
+idénticos en el log.
 
-Se hizo que la sonda informe la causa —y, de paso, que espere a que un despliegue recién creado se
-vuelva alcanzable, en vez de apostar a un `sleep` fijo de diez segundos—. La causa apareció:
+Se hizo que la sonda informe la causa —y que espere a que un despliegue recién creado se vuelva
+alcanzable, en vez de apostar a un `sleep` fijo de diez segundos—. La causa apareció sola:
 
 ```text
 aún no contesta (1/12): fetch failed — redirect count exceeded
 ```
 
-`herramientas/humo.js` mandaba dos cabeceras: la llave, y `x-vercel-set-bypass-cookie: true`. La
+`herramientas/humo.js` mandaba dos cabeceras: la llave y `x-vercel-set-bypass-cookie: true`. La
 segunda le pide a Vercel que además de dejar pasar el pedido, la respuesta **plante una cookie**; y
 para plantarla, **redirige**. Un navegador guarda la cookie, sigue el redirect una vez y entra.
 `fetch` no tiene tarro de cookies: sigue el redirect, vuelve a llegar sin la cookie, Vercel vuelve a
-redirigir, y así hasta que fetch se planta.
+redirigir, y así hasta que fetch se planta. Se quitó esa cabecera: la de la llave sola ya autoriza
+el pedido. **Resuelto.**
 
-Se quitó esa cabecera: la de la llave sola ya autoriza el pedido. **Resuelto.**
+> Corolario que conviene registrar: **Vercel solo entra en el baile de la cookie cuando la llave es
+> válida.** Con una llave incorrecta contesta su pantalla de autenticación y no redirige nada
+> —comprobado—. Es decir, el bucle de redirects fue la prueba de que la llave era la correcta.
 
-> Y hay un corolario que conviene registrar: **Vercel solo entra en el baile de la cookie cuando la
-> llave es válida.** Con una llave incorrecta contesta su pantalla de autenticación y no redirige
-> nada — comprobado. Es decir, el bucle de redirects fue la prueba de que la llave configurada es
-> la correcta.
+### Capa 3 — al entorno *Preview* le faltaban las variables de Turso
 
-### Capa 3 — el entorno *Preview* de Vercel no tiene con qué hablarle a Turso *(pendiente, fuera del repositorio)*
+Ya del otro lado de la autenticación, el preview contestaba **500**, y lo que devolvía era **la
+página de error de la propia aplicación** (`<title>Error - Cancha Total F5…`), no la de Vercel: el
+despliegue existía y Express atendía; lo que fallaba era la base.
 
-Ya del otro lado de la autenticación, el preview contesta **500**, y lo que devuelve es **la página
-de error de la propia aplicación** (`<title>Error - Cancha Total F5…`), no la de Vercel. O sea: el
-despliegue existe, la función arranca y Express está atendiendo. Lo que falla es la base.
-
-El diagnóstico se puede afinar leyendo el código, sin adivinar. `/api/health` **atrapa** los errores
-de base y contesta **503 con un JSON** que dice `database: "disconnected"`:
-
-```js
-} catch (error) {
-  res.status(503).json({ status: 'error', database: 'disconnected', ... });
-}
-```
-
-Pero lo que llega es **500 con HTML**. Entonces el handler nunca terminó de correr: la excepción se
-levanta en su primera línea, `bd.descripcionDeLaBase()`, que está **fuera** del `try`, y la atrapa
-el manejador de errores de Express. La única excepción de configuración que encaja está en
-[`bd.js`](../bd.js):
+El diagnóstico se acotó leyendo el código, sin adivinar. `/api/health` **atrapa** los errores de
+base y contesta **503 con JSON** (`database: "disconnected"`). Lo que llegaba era **500 con HTML**,
+así que la excepción se levantaba antes de entrar al `try`: en la primera línea del handler,
+`bd.descripcionDeLaBase()`. La única excepción de configuración que encaja está en [`bd.js`](../bd.js):
 
 > `TURSO_DATABASE_URL apunta a una base remota pero falta TURSO_AUTH_TOKEN.`
 
-Y encaja con el resto de la evidencia: **sin** `TURSO_DATABASE_URL` la aplicación caería al archivo
-local y contestaría **200** con `backend=archivo-local` (fallaría la comprobación "usa Turso", pero
-no daría 500). Con la URL puesta y sin token, tira antes de poder contestar nada.
+Y encajaba con el resto: **sin** `TURSO_DATABASE_URL` la aplicación caería al archivo local y
+contestaría 200 con `backend=archivo-local`; con la URL puesta y sin token, tira antes de contestar.
 
-**Conclusión:** el entorno **Preview** del proyecto en Vercel tiene `TURSO_DATABASE_URL` pero le
-falta `TURSO_AUTH_TOKEN`. Eso vive en la consola de Vercel —Project Settings → Environment
-Variables, columna *Preview*— y no hay nada en este repositorio que pueda arreglarlo.
+Se cargaron `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` en el entorno **Preview** del proyecto en
+Vercel, y el relanzamiento quedó verde. **Resuelto.**
 
-Corrida con este estado: [runs/33450210373](https://github.com/jcyanez/cancha-total-f5/actions/runs/33450210373).
+### Una observación que queda abierta
 
-### Por qué esto no bloquea la entrega
+El preview reporta `reservas=1` y producción reporta `reservas=1`. No es prueba —podrían ser dos
+bases con una fila cada una— pero es coherente con que **el entorno Preview apunte a la misma base
+de Turso que producción**.
 
-`Deploy Preview` **no es** el check requerido para fusionar. El requerido es
-`Lint · Pruebas · Build · Humo`, y está verde. La cadena que protege producción —CI → migrar →
-desplegar → verificar— no pasa por el preview.
+Si es así, conviene saber lo que implica: cualquier PR abierto sirve un preview que **lee y escribe
+la base real**, y alguien navegando ese preview puede registrar o cancelar reservas de verdad. La
+verificación automática de este pipeline no corre ese riesgo —contra una URL remota la sonda solo
+hace lecturas, por diseño—, pero una persona con el enlace del preview sí.
 
-Se clasifica `PARTIAL` y no `VERIFIED_FAIL` porque todo lo que depende de este repositorio funciona
-y está demostrado: el CI corre, la CLI fijada construye, el despliegue del preview **se completa** y
-obtiene su URL, y la autenticación se atraviesa. Lo que falta es una variable de entorno en una
-consola externa. Y no se clasifica `VERIFIED_PASS` porque **el check está rojo**, y decir lo
-contrario sería inventar evidencia.
-
-> Una decisión que quedó sin tomar, a propósito: darle al entorno Preview las credenciales de
-> **producción** dejaría el check en verde en un minuto, y por eso mismo no se hizo sin preguntar.
-> Significaría que cualquier PR abierto comparte la base real, y que alguien navegando un preview
-> puede escribir reservas de verdad. Es una decisión de infraestructura con consecuencias sobre
-> datos reales, no un ajuste de pipeline. Lo correcto es una base de preview aparte, migrada por
-> su propio camino.
+Lo prolijo es una base de preview aparte, migrada por su propio camino. No se hizo acá porque crear
+o escribir en una base nueva excede lo que este PR debía tocar, y porque es una decisión de
+infraestructura, no de pipeline. Queda anotado como recomendación, no como defecto de la entrega.
 
 ---
 
@@ -213,15 +210,25 @@ forma exacta del *valor* de una llave de bypass de Vercel. El patrón es compati
 ejecutado `gh secret set <VALOR>` sin `--body`, con lo cual el valor terminó ocupando el campo del
 nombre.
 
-- **No se reproduce el nombre acá**, ni en ningún log, por si efectivamente es una credencial.
+- **No se reprodujo el nombre** en ningún log, informe ni comando, por si efectivamente era una
+  credencial. Se borró leyendo la lista y descartando por diferencia contra los seis nombres
+  esperados, sin imprimirlo.
 - Los nombres de los secretos de Actions solo los ve quien tiene acceso de escritura al
-  repositorio, así que la exposición es acotada — pero es una exposición.
-- **Debe rotarse**: generar una llave nueva en Vercel (lo que invalida la anterior) y cargarla con
-  el nombre correcto, `VERCEL_AUTOMATION_BYPASS_SECRET`. Después, borrar el secreto mal nombrado.
+  repositorio, así que la exposición fue acotada — pero fue una exposición.
 - No se intentó ocultar reescribiendo nada: un secreto de Actions no vive en la historia de Git.
 
-Que ese valor esté mal cargado es también la causa directa del § 3: el secreto con el nombre que el
-workflow busca no existe.
+**Estado: cerrado.** El secreto mal nombrado fue eliminado, y la llave quedó cargada con el nombre
+que el workflow busca. La lista final tiene exactamente seis nombres y ninguno sobrante:
+
+```text
+TURSO_AUTH_TOKEN · TURSO_DATABASE_URL · VERCEL_AUTOMATION_BYPASS_SECRET
+VERCEL_ORG_ID · VERCEL_PROJECT_ID · VERCEL_TOKEN
+```
+
+> Recomendación que sobrevive al cierre: si la llave que quedó cargada es **la misma** que estuvo
+> expuesta como nombre, conviene rotarla en Vercel —Deployment Protection → Protection Bypass for
+> Automation → regenerar— y volver a cargarla. Regenerarla invalida la anterior, y el pipeline no
+> necesita ningún cambio para tomar la nueva.
 
 ---
 

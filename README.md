@@ -229,6 +229,11 @@ La demostración de que la puerta cierra y abre está **dentro de un mismo pull 
 | Rojo | `65f5c90` | [runs/33446508303](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446508303) | 88 pruebas, 1 falla · PR **BLOCKED** · preview *skipped* |
 | Verde | `6f4921e` | [runs/33446710929](https://github.com/jcyanez/cancha-total-f5/actions/runs/33446710929) | 87 pruebas, 87 pasan |
 
+El preview del PR también quedó verde —[runs/33451632482](https://github.com/jcyanez/cancha-total-f5/actions/runs/33451632482),
+**10/10** con `backend=turso`—, después de corregir dos defectos de la sonda de humo y de cargar las
+variables de Turso en el entorno *Preview* de Vercel. La historia completa está en
+[docs/ENTREGA-CASO-6.md § 3](docs/ENTREGA-CASO-6.md).
+
 `main` tiene además un commit directo histórico,
 [`d4fa9f9`](https://github.com/jcyanez/cancha-total-f5/commit/d4fa9f9a8c16ee74e10f91101b45a2522c59e298),
 **anterior a la activación de la protección**. No se oculta ni se reescribe: borrarlo eliminaría la
