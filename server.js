@@ -977,6 +977,73 @@ function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa }) {
   return `<tr${conLuz}><td>${hora}:00</td>${celdaEstado}${celdaTarifa}${celdaAccion}</tr>`;
 }
 
+// El formulario de nueva reserva. Aparece en dos pantallas —la de inicio, donde
+// se llena de cero, y la de /reservar, a la que se llega desde un bloque libre
+// de la grilla— y las dos tienen que mandarle exactamente los mismos campos al
+// mismo POST /reservas. Vivía interpolado dentro de la pantalla de inicio
+// porque había una sola pantalla; ahora hay dos, y se comparte antes de que se
+// vuelvan dos copias que se van separando sin que nadie lo note.
+//
+// `preseleccionar` es lo único que las distingue. La pantalla de inicio no
+// llega con un bloque elegido: su formulario sale en blanco y sin un solo
+// atributo `selected`, exactamente como salía antes de que esta función
+// existiera. La de /reservar sí llega con la cancha y la hora del bloque en que
+// se hizo clic, y marcarlas es todo el sentido de haber hecho clic.
+function formularioDeReserva({ cancha, fecha, hora, preseleccionar }) {
+  const marcada = (valor, opcion) => (preseleccionar && Number(valor) === opcion ? ' selected' : '');
+  const horas = Array.from({ length: 14 }, (_, i) => 8 + i);
+  return `<form class="reserva" method="post" action="/reservas">
+  <input type="hidden" name="fecha" value="${escaparHTML(fecha)}">
+  <div class="campos">
+    <div class="campo">
+      <label for="cancha">Cancha:</label>
+      <select name="cancha" id="cancha">
+        <option value="1"${marcada(cancha, 1)}>Cancha 1</option>
+        <option value="2"${marcada(cancha, 2)}>Cancha 2</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label for="hora">Hora de inicio:</label>
+      <select name="hora" id="hora">
+        ${horas.map(h => `<option value="${h}"${marcada(hora, h)}>${h}:00</option>`).join('')}
+      </select>
+    </div>
+    <div class="campo">
+      <label for="cliente">Nombre del cliente:</label>
+      <input type="text" name="cliente" id="cliente" autocomplete="name">
+    </div>
+    <div class="campo">
+      <label for="telefono">Teléfono:</label>
+      <input type="text" name="telefono" id="telefono" inputmode="numeric" autocomplete="tel">
+    </div>
+    <div class="campo">
+      <label for="precioEstimado">Precio estimado:</label>
+      <output class="plato-precio" id="precioEstimado" for="hora">-</output>
+    </div>
+  </div>
+  <button class="boton-principal" type="submit">Reservar</button>
+</form>`;
+}
+
+// El precio estimado que muestra el formulario lo pide el navegador: cada vez
+// que cambia la hora elegida le pregunta la tarifa a /api/cotizar. Acompaña al
+// formulario a las dos pantallas donde aparece, así que se arma en el mismo
+// lugar y no en cada una. La fecha viaja adentro porque la cotización se pide
+// por bloque, y va por escaparParaGuion() porque adentro de un <script> las
+// entidades HTML no protegen.
+function guionDePrecioEstimado(fecha) {
+  return `<script>
+  function actualizarPrecio() {
+    var hora = document.getElementById('hora').value;
+    fetch(${escaparParaGuion('/api/cotizar?fecha=' + fecha + '&hora=')} + hora)
+      .then(function (r) { return r.json(); })
+      .then(function (d) { document.getElementById('precioEstimado').textContent = d.precioFormateado; });
+  }
+  document.getElementById('hora').addEventListener('change', actualizarPrecio);
+  actualizarPrecio();
+</script>`;
+}
+
 // GET / -------------------------------------------------------------------
 // Disponibilidad del día para ambas canchas + formulario de reserva.
 app.get('/', asincrono(async (req, res) => {
@@ -1012,50 +1079,11 @@ app.get('/', asincrono(async (req, res) => {
 </div>
 
 <h2>Nueva reserva</h2>
-<form class="reserva" method="post" action="/reservas">
-  <input type="hidden" name="fecha" value="${escaparHTML(fecha)}">
-  <div class="campos">
-    <div class="campo">
-      <label for="cancha">Cancha:</label>
-      <select name="cancha" id="cancha">
-        <option value="1">Cancha 1</option>
-        <option value="2">Cancha 2</option>
-      </select>
-    </div>
-    <div class="campo">
-      <label for="hora">Hora de inicio:</label>
-      <select name="hora" id="hora">
-        ${Array.from({ length: 14 }, (_, i) => 8 + i).map(h => `<option value="${h}">${h}:00</option>`).join('')}
-      </select>
-    </div>
-    <div class="campo">
-      <label for="cliente">Nombre del cliente:</label>
-      <input type="text" name="cliente" id="cliente" autocomplete="name">
-    </div>
-    <div class="campo">
-      <label for="telefono">Teléfono:</label>
-      <input type="text" name="telefono" id="telefono" inputmode="numeric" autocomplete="tel">
-    </div>
-    <div class="campo">
-      <label for="precioEstimado">Precio estimado:</label>
-      <output class="plato-precio" id="precioEstimado" for="hora">-</output>
-    </div>
-  </div>
-  <button class="boton-principal" type="submit">Reservar</button>
-</form>
+${formularioDeReserva({ fecha, preseleccionar: false })}
 
 <p class="acciones"><a href="/dia/${escaparHTML(fecha)}">Ver lista de reservas del ${escaparHTML(fecha)}</a></p>
 
-<script>
-  function actualizarPrecio() {
-    var hora = document.getElementById('hora').value;
-    fetch(${escaparParaGuion('/api/cotizar?fecha=' + fecha + '&hora=')} + hora)
-      .then(function (r) { return r.json(); })
-      .then(function (d) { document.getElementById('precioEstimado').textContent = d.precioFormateado; });
-  }
-  document.getElementById('hora').addEventListener('change', actualizarPrecio);
-  actualizarPrecio();
-</script>
+${guionDePrecioEstimado(fecha)}
 `;
 
   res.send(layout('Inicio', contenido));
@@ -1088,6 +1116,94 @@ async function pantallaDeDisponibilidad(cancha, req, res) {
 
 app.get('/disponibilidad/cancha1', asincrono((req, res) => pantallaDeDisponibilidad(1, req, res)));
 app.get('/disponibilidad/cancha2', asincrono((req, res) => pantallaDeDisponibilidad(2, req, res)));
+
+// GET /reservar -----------------------------------------------------------
+// La pantalla que abre un bloque libre de la grilla, con el bloque ya elegido.
+//
+// El enlace lo arma filaDeBloque() como `cancha=1&fecha=...&hora=9`, pero un
+// enlace también se copia, se pega y se escribe a mano, y la documentación del
+// sistema los muestra en la otra forma: `cancha1` y `15:00`. Las dos dicen lo
+// mismo, así que las dos se entienden. Lo que no se adivina es el resto: ahí no
+// se inventa un valor por omisión, se muestra el problema.
+function canchaDelEnlace(texto) {
+  const limpio = texto.toLowerCase().replace(/^cancha/, '');
+  return /^\d+$/.test(limpio) ? Number(limpio) : null;
+}
+
+function horaDelEnlace(texto) {
+  const coincidencia = /^(\d{1,2})(?::00)?$/.exec(texto);
+  return coincidencia ? Number(coincidencia[1]) : null;
+}
+
+app.get('/reservar', asincrono(async (req, res) => {
+  // Los tres parámetros llegan como texto de la query y pueden no llegar. Se
+  // normalizan primero y se juzgan después, para poder distinguir «no vino» de
+  // «vino mal»: no es lo mismo un enlace incompleto que uno equivocado.
+  const canchaTexto = String(req.query.cancha ?? '').trim();
+  const fecha = String(req.query.fecha ?? '').trim();
+  const horaTexto = String(req.query.hora ?? '').trim();
+
+  const cancha = canchaDelEnlace(canchaTexto);
+  const hora = horaDelEnlace(horaTexto);
+
+  // Se juntan todos los problemas y se informan de una sola vez, con el mismo
+  // criterio que POST /reservas: quien llega con un enlace roto se entera de
+  // todo lo que tiene mal, no del primer defecto y después del siguiente.
+  const errores = [];
+
+  if (canchaTexto === '') {
+    errores.push('Falta indicar la cancha.');
+  } else if (cancha !== 1 && cancha !== 2) {
+    errores.push('La cancha debe ser 1 o 2.');
+  }
+
+  if (fecha === '') {
+    errores.push('Falta la fecha.');
+  } else if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    errores.push('El formato de la fecha es inválido.');
+  }
+
+  if (horaTexto === '') {
+    errores.push('Falta la hora de inicio.');
+  } else if (hora === null || hora < 8 || hora > 21) {
+    errores.push('La hora debe ser un bloque entre las 08:00 y las 21:00.');
+  }
+
+  if (errores.length > 0) {
+    const listaErrores = errores.map(e => `<li>${e}</li>`).join('');
+    const contenidoError = `<div class="error" role="alert"><p>No se pudo abrir el formulario de reserva:</p><ul>${listaErrores}</ul></div><p class="acciones"><a href="/">Volver</a></p>`;
+    return res.send(layout('Error', contenidoError));
+  }
+
+  // Un enlace a un bloque libre envejece: la grilla que lo pintó pudo haberse
+  // dibujado hace media hora, y en el medio alguien reservó ese bloque. Mostrar
+  // el formulario igual sería invitar a escribir un nombre y un teléfono para
+  // que POST /reservas los rechace al final. Se avisa acá, con la reserva que
+  // lo ocupa a un clic, que es lo que hace falta para resolverlo.
+  const ocupados = await bloquesOcupadosDelDia(fecha);
+  const idQueOcupa = ocupados.get(`${cancha}-${hora}`);
+  if (idQueOcupa !== undefined) {
+    const contenidoOcupado = `<div class="error" role="alert"><p>Ese bloque ya está ocupado: cancha ${cancha}, ${escaparHTML(fecha)} a las ${hora}:00.</p><p>Elegí otro bloque libre de la grilla o revisá la reserva que lo ocupa.</p></div><p class="acciones"><a href="/reserva/${idQueOcupa}">Administrar la reserva #${idQueOcupa}</a> | <a href="/?fecha=${escaparHTML(fecha)}">Volver a disponibilidad</a></p>`;
+    return res.send(layout('Bloque ocupado', contenidoOcupado));
+  }
+
+  // La tarifa que se muestra es la del bloque y nada más. El descuento de
+  // cliente frecuente depende de cuántas reservas lleve el teléfono en el mes,
+  // y el teléfono todavía no se escribió: lo decide POST /reservas al
+  // confirmar, igual que cuando el formulario se llena desde la pantalla de
+  // inicio. Decir acá un precio con descuento sería prometer lo que no se sabe.
+  const contenido = `
+<h2>Reservar Cancha ${cancha} - <span class="dato">${escaparHTML(fecha)}</span> a las ${hora}:00</h2>
+<p>Tarifa del bloque: <strong>${formatColones(tarifaDelBloque(hora))}</strong>. Es la tarifa sin descuento: si el teléfono llega a las cuatro reservas del mes, el 10% de cliente frecuente se aplica al confirmar.</p>
+${formularioDeReserva({ cancha, fecha, hora, preseleccionar: true })}
+
+<p class="acciones"><a href="/?fecha=${escaparHTML(fecha)}">Volver a disponibilidad</a></p>
+
+${guionDePrecioEstimado(fecha)}
+`;
+
+  res.send(layout('Nueva reserva', contenido));
+}));
 
 // POST /reservas ------------------------------------------------------------
 app.post('/reservas', asincrono(async (req, res) => {
