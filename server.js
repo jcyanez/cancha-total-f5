@@ -200,6 +200,10 @@ const ESTILOS = `
   --cancha: #0E5C3F;
   --tablero-fondo: #0B4530;
   --tablero-tinta: #FFFFFF;
+  /* El realce del menú es un velo de luz sobre el tablero, no un color: por eso
+     lleva transparencia y no un verde más claro. Estaba escrito a mano en su
+     regla, que era el único literal suelto que quedaba fuera de acá. */
+  --tablero-realce: rgba(255, 255, 255, 0.12);
   --papel: #F4F6F1;
   --superficie: #FFFFFF;
   --tinta: #14211B;
@@ -207,9 +211,14 @@ const ESTILOS = `
   --linea: #D8E0D8;
   --borde-control: #7D8A82;
 
-  /* La luz: por qué la tarifa sube a las 17:00 */
+  /* La luz: por qué la tarifa sube a las 17:00.
+     Son tres decisiones distintas y no una sola: el papel cálido de la banda
+     de la tarde, el ámbar que dibuja la frontera —trazo, no palabra— y la
+     tinta con que se escribe sobre ese papel, que tiene que llegar a 4,5:1
+     porque es texto. El ámbar no llega: es decorado. */
   --papel-luz: #FDF6E9;
   --luz: #B87A1A;
+  --luz-tinta: #8A5A0F;
   --ambar: #F2B84B;
 
   /* Estados */
@@ -219,6 +228,19 @@ const ESTILOS = `
   --ocupado-fondo: #FBE9E6;
   --anulado: #4E5A55;
   --anulado-fondo: #EAEEEB;
+
+  /* Realce. Dos intensidades del mismo gesto: «acá está el puntero» y «este
+     es el bloque con el que se está trabajando». Se usan también para el
+     reposo y el apretón de un enlace de acción, porque señalar la fila y
+     señalar su botón son la misma idea vista de cerca. */
+  --realce-suave: #ECF3EE;
+  --realce-fuerte: #D6E8DD;
+
+  /* Aviso informativo. Ni confirmación ni error: la pantalla de una reserva
+     dice cosas que no son ninguna de las dos —«todavía se puede cancelar»— y
+     pintarlas de verde sería felicitar a quien solo está leyendo. */
+  --info: #14608C;
+  --info-fondo: #E4EFF6;
 
   /* Botones. La acción principal es sólida; las demás son de contorno, para
      que cada pantalla tenga una sola llamada a la acción. */
@@ -260,13 +282,17 @@ const ESTILOS = `
   /* Iconos. Una sola familia y un solo peso: geometría Phosphor «regular»
      —lienzo de 256, trazo de 16, remates y uniones redondas— dibujada acá
      porque no se pueden traer archivos ni CDN. Los nombres son los del
-     catálogo: check-circle, x-circle, warning, lightbulb.
+     catálogo: check-circle, x-circle, warning, lightbulb, plus-circle,
+     pencil-simple, info.
      Se pintan como máscara, así heredan el color del texto y una sola
      definición sirve para todos los estados. */
   --i-check-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='128' cy='128' r='96'/%3E%3Cpath d='M172 104l-56 56-32-32'/%3E%3C/svg%3E");
   --i-x-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='128' cy='128' r='96'/%3E%3Cpath d='M160 96l-64 64M160 160L96 96'/%3E%3C/svg%3E");
   --i-warning: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M128 40L224 200H32Z'/%3E%3Cpath d='M128 104v40'/%3E%3Ccircle cx='128' cy='180' r='10' fill='%23000' stroke='none'/%3E%3C/svg%3E");
   --i-lightbulb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='128' cy='94' r='62'/%3E%3Cpath d='M100 150v40a28 28 0 0 0 56 0v-40'/%3E%3Cpath d='M104 196h48'/%3E%3C/svg%3E");
+  --i-plus-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='128' cy='128' r='96'/%3E%3Cpath d='M88 128h80M128 88v80'/%3E%3C/svg%3E");
+  --i-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M92 216H40v-52L164 40l52 52Z'/%3E%3Cpath d='M136 68l52 52'/%3E%3C/svg%3E");
+  --i-info: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%23000' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='128' cy='128' r='96'/%3E%3Cpath d='M118 124h12v56'/%3E%3Cpath d='M110 180h40'/%3E%3Ccircle cx='127' cy='86' r='10' fill='%23000' stroke='none'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
@@ -274,6 +300,10 @@ const ESTILOS = `
     --cancha: #6FCFA2;
     --tablero-fondo: #0A1F17;
     --tablero-tinta: #EAF3EC;
+    /* El tablero es oscuro con los dos temas, así que el velo sigue siendo de
+       luz; se repite igual que --ambar, para que ningún nombre quede definido
+       en un solo bloque y haya que ir a buscarlo al otro. */
+    --tablero-realce: rgba(255, 255, 255, 0.12);
     --papel: #0E1512;
     --superficie: #18211C;
     --tinta: #E7EEE9;
@@ -283,6 +313,8 @@ const ESTILOS = `
 
     --papel-luz: #26200F;
     --luz: #E0A93F;
+    /* Sobre papel oscuro el ámbar ya se lee: la tinta y el trazo coinciden. */
+    --luz-tinta: #E0A93F;
     --ambar: #F2B84B;
 
     --libre: #6FCFA2;
@@ -291,6 +323,15 @@ const ESTILOS = `
     --ocupado-fondo: #3A201C;
     --anulado: #A0ADA5;
     --anulado-fondo: #232C27;
+
+    /* De noche el realce no puede ser «más claro» sin más: sobre papel oscuro
+       la fila señalada se levanta un paso, lo justo para separarse del fondo
+       sin encender la pantalla. */
+    --realce-suave: #1D2823;
+    --realce-fuerte: #26332C;
+
+    --info: #7FC4EC;
+    --info-fondo: #122A38;
 
     --boton-fondo: #6FCFA2;
     --boton-fondo-fuerte: #8ADCB5;
@@ -467,7 +508,7 @@ p { margin: 0 0 var(--e-4); }
   text-decoration: none;
 }
 
-.tablero nav a:hover { background: rgba(255, 255, 255, 0.12); text-decoration: underline; }
+.tablero nav a:hover { background: var(--tablero-realce); text-decoration: underline; }
 
 /* --- Foco ---------------------------------------------------------------- */
 :focus-visible {
@@ -530,7 +571,11 @@ tr:last-child { background-image: none; }
    tabulares, para que las columnas alineen columna contra columna. */
 .grilla {
   table-layout: fixed;
-  min-width: 19rem;
+  /* Cuatro columnas, y la última lleva un enlace con área táctil de 44 px: por
+     debajo de este ancho la tarifa y la acción se aplastan una contra otra.
+     Cuando el teléfono no lo da, el que scrollea es el marco —que para eso
+     tiene overflow propio—, nunca el cuerpo de la página. */
+  min-width: 24rem;
 }
 
 .grilla th:first-child { width: 6rem; }
@@ -543,26 +588,30 @@ tr:last-child { background-image: none; }
   white-space: nowrap;
 }
 
-.grilla td:last-child {
+/* La tarifa se nombra por su posición dentro de la grilla que la tiene, y no
+   como «la última columna»: desde que existe la columna de acción, la última
+   ya no es la plata. La celda de tarifa no admite una clase —su forma está
+   fijada por la suite—, así que la que se nombra es la tabla. */
+.grilla:not(.grilla--sin-tarifa) td:nth-child(3) {
   font-family: var(--fuente-dato);
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-.grilla th:last-child { text-align: right; }
+.grilla:not(.grilla--sin-tarifa) th:nth-child(3) { text-align: right; }
 
-/* Cuando solo hay dos columnas —la pantalla por cancha— la última no es una
-   tarifa sino el estado: se alinea a la izquierda y la tabla deja de estirarse
-   a lo ancho, porque dos columnas no necesitan toda la página. */
+/* Cuando no hay tarifa —la pantalla por cancha— quedan tres columnas: hora,
+   estado y acción. La tabla deja de estirarse a lo ancho, porque tres columnas
+   no necesitan toda la página. */
 .grilla--sin-tarifa {
   width: auto;
   table-layout: auto;
   min-width: 0;
 }
 
-.grilla--sin-tarifa td:last-child,
-.grilla--sin-tarifa th:last-child {
+.grilla--sin-tarifa td:nth-child(2),
+.grilla--sin-tarifa th:nth-child(2) {
   text-align: left;
   font-family: var(--fuente-ui);
   width: 8.5rem;
@@ -584,10 +633,16 @@ tr:last-child { background-image: none; }
 .lista td.estado-cancelada {
   position: relative;
   z-index: 0;
-  padding: var(--e-2) var(--e-4);
-  font-weight: 600;
+  padding: var(--e-2) var(--e-3);
+  font-weight: 700;
   font-size: var(--texto-sm);
   white-space: nowrap;
+  /* Versalitas y un poco de aire entre letras: catorce filas casi iguales se
+     leen de arriba abajo por la forma de la palabra antes que por la palabra.
+     El texto es el que manda el HTML —«Libre», «Ocupado»—, que la suite fija y
+     acá no se toca; lo único que cambia es cómo se dibuja. */
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .grilla td.libre::after,
@@ -676,7 +731,7 @@ tr:last-child { background-image: none; }
 .grilla td.ocupado::before,
 .lista td.estado-activa::before,
 .lista td.estado-cancelada::before,
-.grilla tr.con-luz td:first-child::after {
+.grilla tr.con-luz td:first-child::before {
   content: "";
   display: inline-block;
   flex: none;
@@ -714,14 +769,147 @@ tr:last-child { background-image: none; }
   background-repeat: no-repeat, no-repeat;
 }
 
+/* La hora encendida se escribe con la tinta de la luz, que no es el ámbar del
+   decorado: un trazo de 2 px puede ser vistoso, una palabra tiene que leerse.
+   Por eso la línea usa --luz y el texto usa --luz-tinta. */
 .grilla tr.con-luz td:first-child {
-  color: var(--luz);
+  color: var(--luz-tinta);
 }
 
-.grilla tr.con-luz td:first-child::after {
+.grilla tr.con-luz td:first-child::before {
   --icono: var(--i-lightbulb);
-  margin-left: 0.45em;
-  margin-right: 0;
+}
+
+/* El distintivo CON LUZ. El foco solo, sin palabra, obliga a saber de antemano
+   qué significa; con la palabra puesta, la grilla explica sola por qué la
+   tarifa de la tarde es otra. Va debajo de la hora y no al lado para no
+   ensanchar la columna, y sale del CSS porque la fila de la grilla tiene sus
+   celdas fijadas por la suite: el HTML no se toca. */
+.grilla tr.con-luz td:first-child::after {
+  content: "CON LUZ";
+  display: block;
+  width: fit-content;
+  margin-top: var(--e-1);
+  padding: 0 var(--e-1);
+  border: 1px solid currentColor;
+  border-radius: var(--radio-3);
+  font-family: var(--fuente-ui);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+
+/* --- La columna de acción -------------------------------------------------
+   Cada bloque de la grilla lleva a alguna parte: el libre al formulario con la
+   fecha y la hora puestas, el ocupado a la reserva que lo ocupa. Son dos
+   destinos distintos y tienen que verse distintos *antes* del clic.
+
+   La diferencia no se cuenta con el color, que para una parte de las personas
+   no llega: cambia la forma —redonda contra rectangular—, cambia el icono
+   —sumar contra editar—, cambia el peso de la letra y cambia el borde. Quien
+   no distingue verde de gris sigue viendo dos cosas que no son la misma. */
+.celda-accion {
+  /* La celda se aprieta para que la que mande el alto sea el área táctil del
+     enlace y no la suma de los rellenos. */
+  padding: var(--e-1) var(--e-3);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  /* 44 px de verdad, en el teléfono y en el escritorio: no es el texto el que
+     decide cuánto mide el blanco al que hay que apuntar. */
+  min-height: var(--toque);
+  min-width: var(--toque);
+  padding: var(--e-2) var(--e-3);
+  font-size: var(--texto-sm);
+  line-height: 1.2;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  touch-action: manipulation;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+/* El icono es el mismo mecanismo de máscara que usa el resto del sistema:
+   hereda el color del texto y no se anuncia, porque la palabra ya está. */
+.accion::before {
+  content: "";
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  background-color: currentColor;
+  -webkit-mask: var(--icono) center / contain no-repeat;
+  mask: var(--icono) center / contain no-repeat;
+}
+
+/* Reservar es lo que la grilla quiere que pase: forma de píldora, tinta de
+   marca, borde entero y letra fuerte. */
+.accion--reservar {
+  --icono: var(--i-plus-circle);
+  border-radius: var(--radio-3);
+  border-color: var(--cancha);
+  color: var(--cancha);
+  font-weight: 700;
+}
+
+/* Administrar es una salida de servicio: rectangular, en tinta suave y con
+   menos peso, para que catorce bloques ocupados no le griten a nadie. */
+.accion--administrar {
+  --icono: var(--i-pencil);
+  border-radius: var(--radio-1);
+  border-color: var(--linea);
+  color: var(--tinta-suave);
+  font-weight: 500;
+}
+
+.accion--reservar:hover { background: var(--libre-fondo); }
+
+.accion--administrar:hover {
+  background: var(--realce-suave);
+  border-color: var(--borde-control);
+  color: var(--tinta);
+}
+
+/* Apretado: el fondo se hunde un paso. El estado dura lo que dura el dedo
+   sobre la pantalla, y es la única confirmación de que el toque entró. */
+.accion:active { background: var(--realce-fuerte); }
+
+/* El foco nunca se apaga: se dibuja más grueso que el del resto del documento
+   porque acá hay catorce destinos seguidos y hay que ver en cuál se está. */
+.accion:focus-visible {
+  outline: 3px solid var(--cancha);
+  outline-offset: 2px;
+  background: var(--realce-suave);
+}
+
+/* --- La fila con la que se está trabajando -------------------------------
+   Catorce filas iguales y una tabla que se lee cruzando la vista de la hora a
+   la acción: hace falta que la fila entera se encienda cuando el puntero o el
+   teclado están en ella. Sin JavaScript y sin tocar las celdas: :hover y
+   :focus-within alcanzan, y la marca de la izquierda dice dónde empieza.
+
+   La clase .bloque existe para poder decir «fila de bloque» sin atrapar la de
+   los encabezados, que también es un <tr>. */
+.grilla tr.bloque:hover,
+.grilla tr.bloque:focus-within { background-color: var(--realce-suave); }
+
+/* Cuando la dirección nombra un bloque —se llegó acá desde él— la marca se
+   queda puesta aunque el puntero se vaya: es memoria de en qué se estaba.
+   Se nombra con las dos clases para pesar lo mismo que :hover y ganarle por
+   orden: pasar el puntero por encima del bloque elegido no puede aflojarle la
+   marca, que es el estado más fuerte de los dos. */
+.grilla tr.bloque.seleccionada { background-color: var(--realce-fuerte); }
+
+.grilla tr.bloque:hover td:first-child,
+.grilla tr.bloque:focus-within td:first-child,
+.grilla tr.bloque.seleccionada td:first-child {
+  box-shadow: inset 3px 0 0 var(--cancha);
 }
 
 /* --- Formulario -----------------------------------------------------------
@@ -834,12 +1022,14 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
 }
 
 /* --- Avisos ---------------------------------------------------------------
-   Confirmación y error comparten la misma forma: barra de acento a la
-   izquierda, icono, y el texto en tinta plena para que se lea.
+   Confirmación, error y aviso comparten la misma forma: barra de acento a la
+   izquierda, icono, y el texto en tinta plena para que se lea. Son la misma
+   pieza con tres temperaturas, así que se dibujan una sola vez y lo único que
+   cambia es el par acento/fondo y el icono.
    No se desvanecen solos. En estas pantallas el aviso *es* el contenido —
    esconderlo a los cuatro segundos dejaría la página vacía—, así que se
    quedan hasta que la persona navegue. */
-.ok, .error {
+.ok, .error, .aviso {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: var(--e-2) var(--e-3);
@@ -866,7 +1056,25 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
   --icono: var(--i-warning);
 }
 
-.ok::before, .error::before {
+/* El aviso de la pantalla de una reserva no confirma nada ni denuncia nada:
+   informa. Por omisión es la variante fría; cuando el aviso lleva role="alert"
+   —el plazo se cerró, el bloque ya pasó— toma el acento del error, que es
+   exactamente lo que el rol declara. La variante sale del atributo y no de una
+   clase nueva para que no puedan separarse: lo que se anuncia y lo que se
+   pinta quedan atados a la misma decisión. */
+.aviso {
+  --acento-aviso: var(--info);
+  --fondo-aviso: var(--info-fondo);
+  --icono: var(--i-info);
+}
+
+.aviso[role="alert"] {
+  --acento-aviso: var(--ocupado);
+  --fondo-aviso: var(--ocupado-fondo);
+  --icono: var(--i-warning);
+}
+
+.ok::before, .error::before, .aviso::before {
   content: "";
   grid-row: 1;
   grid-column: 1;
@@ -878,9 +1086,13 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
   mask: var(--icono) center / contain no-repeat;
 }
 
-.ok > *, .error > * { grid-column: 2; margin: 0; }
+.ok > *, .error > *, .aviso > * { grid-column: 2; margin: 0; }
 
-.ok > * + *, .error > * + * { margin-top: var(--e-2); }
+.ok > * + *, .error > * + *, .aviso > * + * { margin-top: var(--e-2); }
+
+/* Un distintivo dentro de un aviso se queda del ancho de su palabra: si se
+   estirara de lado a lado dejaría de leerse como distintivo. */
+.aviso > .pildora { justify-self: start; }
 
 .ok > p:first-of-type,
 .error > p:first-of-type {
@@ -912,6 +1124,155 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
   background-color: var(--ocupado);
   -webkit-mask: var(--i-x-circle) center / contain no-repeat;
   mask: var(--i-x-circle) center / contain no-repeat;
+}
+
+/* --- La ficha de una reserva ---------------------------------------------
+   Cinco datos y un estado. No es una tabla —no hay filas que comparar entre
+   sí— sino una lista de definiciones: cada rótulo con su valor. En el teléfono
+   el valor va debajo del rótulo; apenas hay ancho, se ponen en dos columnas y
+   los valores quedan alineados en una sola vertical, que es lo que permite
+   leerlos de un vistazo en vez de ir cazándolos. */
+.detalle {
+  margin: 0 0 var(--e-5);
+  padding: var(--e-2) var(--e-5);
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-2);
+  box-shadow: var(--sombra-1);
+}
+
+/* El separador se dibuja como fondo y no como borde inferior, igual que en
+   las tablas: así la última fila lo apaga sin dejar un borde a medio pintar. */
+.detalle-fila {
+  display: grid;
+  gap: 0 var(--e-4);
+  padding: var(--e-3) 0;
+  background-image: linear-gradient(var(--linea), var(--linea));
+  background-position: bottom;
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+}
+
+.detalle-fila:last-child { background-image: none; }
+
+@media (min-width: 30rem) {
+  .detalle-fila {
+    grid-template-columns: 11rem minmax(0, 1fr);
+    align-items: baseline;
+  }
+}
+
+/* El rótulo es rótulo de tablero, con la misma voz que los nombres de cancha
+   de la portada: no compite con el dato, lo presenta. */
+.detalle dt {
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tinta-suave);
+}
+
+.detalle dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* --- Distintivos ---------------------------------------------------------
+   La píldora dice de un vistazo lo que el párrafo dice en prosa. Nunca dice
+   otra cosa: si el aviso explica que todavía se puede cancelar, el distintivo
+   es PUEDE CANCELARSE y no un símbolo que haya que interpretar.
+   El borde no es decoración: es la señal que queda cuando el color no llega
+   —pantalla en blanco y negro, impresión, daltonismo—, y por eso lo llevan
+   las cuatro variantes y no solo algunas. */
+.pildora {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: var(--e-1) var(--e-3);
+  border: 1px solid currentColor;
+  border-radius: var(--radio-3);
+  background: var(--fondo-pildora);
+  color: var(--tinta-pildora);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.pildora::before {
+  content: "";
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  background-color: currentColor;
+  -webkit-mask: var(--icono) center / contain no-repeat;
+  mask: var(--icono) center / contain no-repeat;
+}
+
+/* Estado de la reserva: la misma pareja de colores que usa la lista del día,
+   para que una reserva anulada se vea igual acá que allá. */
+.pildora.estado-activa {
+  --icono: var(--i-check-circle);
+  --fondo-pildora: var(--libre-fondo);
+  --tinta-pildora: var(--libre);
+}
+
+.pildora.estado-cancelada {
+  --icono: var(--i-x-circle);
+  --fondo-pildora: var(--anulado-fondo);
+  --tinta-pildora: var(--anulado);
+}
+
+/* Y el plazo, que es la otra pregunta que se le hace a esta pantalla: ¿todavía
+   llego? La respuesta no depende del estado sino del reloj, así que tiene su
+   propio distintivo. */
+.pildora--puede {
+  --icono: var(--i-check-circle);
+  --fondo-pildora: var(--libre-fondo);
+  --tinta-pildora: var(--libre);
+}
+
+.pildora--no-puede {
+  --icono: var(--i-x-circle);
+  --fondo-pildora: var(--ocupado-fondo);
+  --tinta-pildora: var(--ocupado);
+}
+
+/* Rótulo de pantalla: dice en qué parte del sistema se está parado antes de
+   que el título diga de qué reserva se trata. */
+.rotulo {
+  display: inline-block;
+  margin: 0 0 var(--e-3);
+  padding: var(--e-1) var(--e-3);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-3);
+  background: var(--superficie);
+  color: var(--tinta-suave);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.rotulo + h2 { margin-top: 0; }
+
+/* --- El teléfono ---------------------------------------------------------
+   A 360 px la grilla ya no entra entera: antes de dejar que el marco scrollee
+   se le saca todo el aire que sobra, que es el de los rellenos laterales. La
+   página nunca scrollea de lado; el marco, si hace falta, sí. */
+@media (max-width: 30rem) {
+  .grilla th, .grilla td {
+    padding-left: var(--e-2);
+    padding-right: var(--e-2);
+  }
+
+  .grilla th:first-child { width: 5.5rem; }
+  .grilla th:nth-child(2) { width: 7.5rem; }
+
+  .accion {
+    padding-left: var(--e-2);
+    padding-right: var(--e-2);
+  }
 }
 
 /* --- Movimiento ----------------------------------------------------------
@@ -954,6 +1315,23 @@ ${contenido}
 </html>`;
 }
 
+// Qué bloque está mirando quien pidió esta grilla, si es que hay alguno. La
+// pantalla no guarda estado y no hay JavaScript que lo recuerde: la única
+// memoria disponible es la dirección. Un enlace que trae hora —y cancha, salvo
+// en la pantalla de una sola cancha, donde la cancha la pone la ruta— es
+// alguien que viene de ese bloque, y esa fila queda señalada.
+//
+// Es una lectura de presentación y no cambia una sola respuesta del sistema:
+// sin esos parámetros, que es como llega todo el mundo hoy, devuelve null y la
+// grilla sale exactamente igual que antes. Reusa los mismos lectores que
+// /reservar, así que entiende tanto `cancha=1&hora=9` como `cancha1` y `15:00`.
+function bloqueSeleccionado(query, canchaDeLaPantalla) {
+  const hora = horaDelEnlace(String(query.hora ?? '').trim());
+  if (hora === null) return null;
+  const cancha = canchaDeLaPantalla ?? canchaDelEnlace(String(query.cancha ?? '').trim());
+  return cancha === null ? null : { cancha, hora };
+}
+
 // Una fila de la grilla de disponibilidad. Las tres grillas del sistema —las
 // dos de la pantalla de inicio y la de cada cancha— pintaban la misma fila con
 // el mismo código copiado; al sumarles la columna de acción la copia pasaba de
@@ -962,14 +1340,28 @@ ${contenido}
 //
 // `conTarifa` existe porque la pantalla de una cancha no habla de plata: ahí la
 // columna de tarifa no se muestra, y el enlace tampoco la menciona.
-function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa }) {
+function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa, seleccion }) {
   const clave = `${cancha}-${hora}`;
   const libre = !ocupados.has(clave);
 
-  // Marca de presentación para los bloques que se juegan con luz encendida:
-  // deja que la grilla muestre de dónde sale el salto de tarifa. No decide
-  // nada; el precio lo sigue decidiendo tarifaDelBloque().
-  const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
+  // Las clases de la fila son todas de presentación y viven en el <tr>, que es
+  // la única parte de la fila que admite atributos: las celdas tienen su forma
+  // fijada por la suite y no se tocan.
+  //
+  //   bloque       — es una fila de bloque y no la de encabezados, que también
+  //                  es un <tr>. La hoja de estilo necesita poder decirlo para
+  //                  encender la fila bajo el puntero sin encender el título.
+  //   con-luz      — el bloque se juega con luz encendida: deja que la grilla
+  //                  muestre de dónde sale el salto de tarifa. No decide nada;
+  //                  el precio lo sigue decidiendo tarifaDelBloque().
+  //   seleccionada — la dirección nombra este bloque, así que la fila se queda
+  //                  marcada. Es la única memoria posible de «en esto estaba»
+  //                  en un sistema sin estado en el navegador.
+  const clases = ['bloque'];
+  if (hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ) clases.push('con-luz');
+  if (seleccion && seleccion.cancha === cancha && seleccion.hora === hora) {
+    clases.push('seleccionada');
+  }
 
   const celdaEstado = `<td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td>`;
   const celdaTarifa = conTarifa ? `<td>${formatColones(tarifaDelBloque(hora))}</td>` : '';
@@ -982,7 +1374,7 @@ function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa }) {
     ? `<td class="celda-accion"><a class="accion accion--reservar" href="/reservar?cancha=${cancha}&amp;fecha=${escaparHTML(fecha)}&amp;hora=${hora}" title="Reservar Cancha ${cancha} a las ${hora}:00" aria-label="Reservar Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Reservar</a></td>`
     : `<td class="celda-accion"><a class="accion accion--administrar" href="/reserva/${ocupados.get(clave)}" title="Ver o administrar reserva de Cancha ${cancha} a las ${hora}:00" aria-label="Ver o administrar la reserva de Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Administrar</a></td>`;
 
-  return `<tr${conLuz}><td>${hora}:00</td>${celdaEstado}${celdaTarifa}${celdaAccion}</tr>`;
+  return `<tr class="${clases.join(' ')}"><td>${hora}:00</td>${celdaEstado}${celdaTarifa}${celdaAccion}</tr>`;
 }
 
 // El formulario de nueva reserva. Aparece en dos pantallas —la de inicio, donde
@@ -1057,12 +1449,13 @@ function guionDePrecioEstimado(fecha) {
 app.get('/', asincrono(async (req, res) => {
   const fecha = req.query.fecha || hoyISO();
   const ocupados = await bloquesOcupadosDelDia(fecha);
+  const seleccion = bloqueSeleccionado(req.query);
 
   let filasCancha1 = '';
   let filasCancha2 = '';
   for (let hora = 8; hora <= 21; hora++) {
-    filasCancha1 += filaDeBloque({ cancha: 1, hora, fecha, ocupados, conTarifa: true });
-    filasCancha2 += filaDeBloque({ cancha: 2, hora, fecha, ocupados, conTarifa: true });
+    filasCancha1 += filaDeBloque({ cancha: 1, hora, fecha, ocupados, conTarifa: true, seleccion });
+    filasCancha2 += filaDeBloque({ cancha: 2, hora, fecha, ocupados, conTarifa: true, seleccion });
   }
 
   const contenido = `
@@ -1102,11 +1495,14 @@ ${guionDePrecioEstimado(fecha)}
 async function pantallaDeDisponibilidad(cancha, req, res) {
   const fecha = req.query.fecha || hoyISO();
   const ocupados = await bloquesOcupadosDelDia(fecha);
+  // Acá la cancha no la trae la dirección sino la ruta: la pantalla ya sabe de
+  // cuál habla, y lo único que puede llegar de afuera es la hora.
+  const seleccion = bloqueSeleccionado(req.query, cancha);
   let filas = '';
   for (let hora = 8; hora <= 21; hora++) {
     // Esta pantalla no habla de plata: es la vista de una sola cancha y solo
     // informa ocupación, así que la fila sale sin la columna de tarifa.
-    filas += filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa: false });
+    filas += filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa: false, seleccion });
   }
   const contenido = `
 <h2>Disponibilidad Cancha ${cancha} - <span class="dato">${escaparHTML(fecha)}</span></h2>
@@ -1408,17 +1804,27 @@ app.get('/reserva/:id', asincrono(async (req, res) => {
   // El enlace para cancelar aparece solo cuando cancelar es posible. Mostrarlo
   // igual y contestar el rechazo un clic después sería hacerle recorrer a
   // alguien un camino que ya se sabe cerrado.
+  //
+  // El aviso lo explica en prosa y el distintivo lo dice en dos palabras. Los
+  // dos dicen lo mismo, siempre: el distintivo es un resumen del párrafo que
+  // tiene al lado, nunca una segunda respuesta que haya que conciliar con la
+  // primera. Quien barre la pantalla con la vista se lleva la respuesta; quien
+  // la lee entera se lleva el motivo.
+  const distintivoPuede = '<p class="pildora pildora--puede">PUEDE CANCELARSE</p>';
+  const distintivoNoPuede = '<p class="pildora pildora--no-puede">NO CANCELABLE</p>';
+
   let seccionDeCancelacion;
   if (reserva.estado === 'cancelada') {
-    seccionDeCancelacion = `<div class="aviso" role="status"><p>Esta reserva está anulada: el bloque volvió a quedar libre y no hay nada más que cancelar.</p></div>`;
+    seccionDeCancelacion = `<div class="aviso" role="status">${distintivoNoPuede}<p>Esta reserva está anulada: el bloque volvió a quedar libre y no hay nada más que cancelar.</p></div>`;
   } else if (plazo.alcanza) {
-    seccionDeCancelacion = `<div class="aviso" role="status"><p>Todavía se puede cancelar: ${faltanEnProsa(plazo.horas)} para el inicio del bloque, y el plazo cierra ${HORAS_DE_PLAZO_PARA_CANCELAR} horas antes.</p></div>
+    seccionDeCancelacion = `<div class="aviso" role="status">${distintivoPuede}<p>Todavía se puede cancelar: ${faltanEnProsa(plazo.horas)} para el inicio del bloque, y el plazo cierra ${HORAS_DE_PLAZO_PARA_CANCELAR} horas antes.</p></div>
 <p class="acciones"><a class="boton-anular" href="/reserva/${reserva.id}/cancelar">Cancelar reserva</a></p>`;
   } else {
-    seccionDeCancelacion = `<div class="aviso" role="alert"><p>${motivoDeNoPoderCancelar(plazo)}</p></div>`;
+    seccionDeCancelacion = `<div class="aviso" role="alert">${distintivoNoPuede}<p>${motivoDeNoPoderCancelar(plazo)}</p></div>`;
   }
 
   const contenido = `
+<p class="rotulo">ADMINISTRAR RESERVA</p>
 <h2>Reserva <span class="dato">#${reserva.id}</span></h2>
 <dl class="detalle">
   <div class="detalle-fila"><dt>Cancha</dt><dd>Cancha ${escaparHTML(reserva.cancha)}</dd></div>
