@@ -1710,7 +1710,7 @@ function guionDeAvisosFlotantes() {
       var cierre = document.getElementById(flotante.getAttribute('data-cierre'));
       if (!vida || !cierre) return;
       window.setTimeout(function apagar() {
-        if (flotante.contains(document.activeElement) || flotante.matches(':hover')) {
+        if (flotante.contains(document.activeElement) || document.activeElement === cierre || flotante.matches(':hover')) {
           window.setTimeout(apagar, vida);
           return;
         }
@@ -2246,10 +2246,14 @@ function plazoDeCancelacion(reserva) {
 }
 
 // Las horas exactas no le sirven a nadie: lo que se quiere saber es si hay
-// tiempo. Se redondean y se dicen en prosa, en singular o en plural según
-// corresponda.
+// tiempo. Se dicen en prosa, en singular o en plural segun corresponda.
+//
+// Se truncan y no se redondean, y eso importa: redondeando, un bloque a 23,6
+// horas se anunciaba como «faltan 24 horas», y la pantalla terminaba diciendo
+// que no se puede cancelar porque faltan justo las horas que si alcanzan. El
+// numero que se muestra no puede cruzar el limite que la regla vigila.
 function faltanEnProsa(horas) {
-  const redondeadas = Math.round(horas);
+  const redondeadas = Math.floor(horas);
   if (redondeadas <= 0) return 'falta menos de una hora';
   if (redondeadas === 1) return 'falta una hora';
   return `faltan ${redondeadas} horas`;
