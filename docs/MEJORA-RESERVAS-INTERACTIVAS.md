@@ -144,10 +144,18 @@ anular.
 - Peor contraste medido en todos los caminos del fondo nuevo, incluido el peor píxel imaginable bajo
   una foto futura: **4,84:1**.
 
-**Límite declarado.** El comportamiento responsive y los temas están razonados por construcción y
-verificados sobre el HTML y el CSS servidos, pero **no medidos en un navegador real**: no hay
-Playwright ni Puppeteer en el entorno y agregar dependencias estaba fuera de alcance. Queda como
-comprobación pendiente, no como comprobación hecha.
+**Sobre cómo se comprobó.** No hay Playwright ni Puppeteer en el entorno de trabajo y agregar
+dependencias estaba fuera de alcance, así que durante el desarrollo el responsive y los temas se
+razonaron por construcción y se verificaron sobre el HTML y el CSS servidos, no en un navegador.
+Eso quedó declarado como pendiente en su momento.
+
+**Ya no lo está.** Antes de aprobar el despliegue, el cliente revisó el sistema en navegador real,
+en producción, y confirmó las dos cosas que faltaban:
+
+- **Tema oscuro**, en escritorio: la grilla con sus cuatro columnas, los distintivos `LIBRE` y
+  `CON LUZ`, la regla ámbar donde salta la tarifa y el césped de fondo.
+- **Responsive a 445 px**: las canchas se apilan, la tabla entra en su marco y **el cuerpo de la
+  página no se corre de lado**.
 
 ---
 
@@ -189,3 +197,67 @@ comparten archivos.
 
 Después de cada grupo se corrió `./verificar.sh` y se revisó el diff antes de commitear. Ningún
 informe de agente se dio por bueno sin comprobarlo.
+
+---
+
+## 8. La revisión del PR encontró dos defectos
+
+`main` está protegida y exige, entre otras cosas, que no queden conversaciones abiertas. La
+revisión automática del PR dejó dos observaciones y **las dos eran defectos reales**. Se
+verificaron contra el código antes de tocar nada y se corrigieron en el commit `fa2b6ff`.
+
+**El aviso flotante se apagaba con el foco encima.** La guarda preguntaba si el foco estaba dentro
+del aviso, pero el botón de cerrar es un `<label>` de una casilla que vive *antes* del aviso, como
+hermana anterior —el CSS la usa así para poder esconderlo sin JavaScript—. Con teclado el foco
+queda en esa casilla, que no está adentro, así que `contains()` daba falso y el reloj apagaba el
+aviso igual: quien llegaba tabulando perdía la frase y quedaba con el foco en un elemento
+invisible. Ahora la casilla cuenta como foco propio.
+
+**El número de horas se contradecía con la regla.** Las horas se redondeaban, de modo que un bloque
+a 23,6 horas se anunciaba como «faltan 24 horas» mientras la misma pantalla decía que no se puede
+cancelar porque el plazo cierra 24 horas antes — cuando exactamente 24 horas sí alcanzan. Ahora se
+truncan: **el número que se muestra no puede cruzar el límite que la regla vigila.**
+
+Comprobado en los tres puntos del borde, con el reloj fijo:
+
+| Faltan | Distintivo | Mensaje |
+|---|---|---|
+| 23,5 h | NO CANCELABLE | faltan 23 horas |
+| 23,6 h | NO CANCELABLE | faltan 23 horas |
+| 24,0 h | PUEDE CANCELARSE | faltan 24 horas |
+
+La regla no se tocó, solo la forma de contarla.
+
+---
+
+## 9. Cierre
+
+La mejora se integró por Pull Request, con la puerta de calidad de por medio y sin ningún empujón
+directo a `main`.
+
+| | |
+|---|---|
+| **Rama** | `feat/ux-reservas-interactivas` |
+| **Pull Request** | [#5](https://github.com/jcyanez/cancha-total-f5/pull/5), mergeado en `49de6ec` |
+| **Commits** | 9 encima del cierre del Caso 6 |
+| **Suite** | 87 → **129**, todas en verde, ninguna marcada |
+| **Pruebas preexistentes** | intactas, verificado **por hash** contra `main` |
+| **`./verificar.sh`** | exit 0 |
+| **Pipeline** | CI → migración a Turso → build → despliegue → verificación, todo en verde |
+| **Producción** | https://cancha-total-f5.vercel.app/ |
+
+Comprobación de producción después del despliegue:
+
+```
+GET /            → 200
+GET /api/health  → 200
+                   {"status":"ok","database":"connected",
+                    "driver":"libsql","backend":"turso"}
+
+GET /reservar?cancha=1&fecha=2026-09-10&hora=15   → 200
+                   con la hora preseleccionada y su aviso role="status"
+```
+
+Y en el HTML servido desde el dominio público: `<th>Acción</th>` en las dos grillas, 30 enlaces
+`accion--reservar`, los `accion--administrar` de los bloques vendidos y las sugerencias
+`data-sugerencia` de cada bloque.
