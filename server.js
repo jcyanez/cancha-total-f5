@@ -13,6 +13,14 @@ const bd = require('./bd.js');
 // instante fijo, sin tocar el código (hallazgos E-1, E-2, E-3, E-6).
 const PUERTO = Number(process.env.CANCHA_PUERTO ?? 3000);
 const INSTANTE_FIJO = process.env.CANCHA_AHORA ? new Date(process.env.CANCHA_AHORA) : null;
+// La pantalla de una reserva no muestra el nombre ni el teléfono de quien la
+// hizo. El sistema no tiene control de acceso (FUERA-2): cualquiera con la
+// dirección entra, y esa pantalla quedó a un clic de la portada, que es
+// pública. Los datos personales siguen donde siempre estuvieron, en la lista
+// del día, que hay que ir a buscar; no se acercan a la puerta de calle. Si
+// mañana la administradora decide otra cosa, se decide acá, en esta línea.
+const DETALLE_MUESTRA_DATOS_DEL_CLIENTE = false;
+
 
 // El único lugar del sistema que lee el reloj.
 function ahora() {
@@ -1317,6 +1325,160 @@ app.post('/reservas/:id/cancelar', asincrono(async (req, res) => {
   } else {
     return res.send(layout('Error', `<div class="error" role="alert">La reserva #${id} no se puede cancelar: falta menos de 24 horas para el bloque.</div><p class="acciones"><a href="/dia/${reserva.fecha}">Volver</a></p>`));
   }
+}));
+
+// Administración de una reserva --------------------------------------------
+// La grilla dejó de ser un tablero de solo lectura: cada bloque ocupado lleva a
+// la reserva que lo ocupa. Lo que sigue es esa pantalla y la confirmación que
+// se le pide a quien decide anular. Ninguna de las dos escribe en la base: el
+// único que cancela sigue siendo POST /reservas/:id/cancelar, que no cambió.
+
+// Un número de reserva llega como texto en la dirección, y una dirección se
+// escribe a mano tanto como se hace clic. Lo que no es un entero no es un
+// número de reserva: no se redondea ni se adivina, se trata como lo que es, un
+// enlace que no lleva a ninguna parte.
+function numeroDeReserva(texto) {
+  return /^\d+$/.test(String(texto).trim()) ? Number(texto) : null;
+}
+
+// Las dos pantallas contestan lo mismo cuando el enlace no lleva a ninguna
+// parte: es la misma situación, y decirla de dos maneras solo sería una
+// diferencia sin motivo. El texto se cuida de no repetir la frase con que el
+// POST avisa de una reserva ya anulada, porque no existir y estar anulada son
+// dos cosas distintas y quien lee tiene que poder distinguirlas.
+function pantallaDeReservaInexistente(id) {
+  const cual = id === null ? 'esa reserva' : `la reserva #${id}`;
+  return layout('Error', `<div class="error" role="alert"><p>No existe ${cual}. El enlace puede estar mal copiado, o la reserva nunca se registró.</p></div><p class="acciones"><a href="/">Volver a disponibilidad</a></p>`);
+}
+
+// La misma cuenta y la misma constante que usa el POST, para que la pantalla no
+// ofrezca lo que el POST después va a negar. Acá solo se mira: quien decide de
+// verdad sigue siendo el POST, porque entre que se pinta esta pantalla y se
+// aprieta el botón el reloj sigue corriendo.
+function plazoDeCancelacion(reserva) {
+  const horas = horasHastaElPartido(reserva, ahora());
+  return { horas, alcanza: horas >= HORAS_DE_PLAZO_PARA_CANCELAR, yaPaso: horas <= 0 };
+}
+
+// Las horas exactas no le sirven a nadie: lo que se quiere saber es si hay
+// tiempo. Se redondean y se dicen en prosa, en singular o en plural según
+// corresponda.
+function faltanEnProsa(horas) {
+  const redondeadas = Math.round(horas);
+  if (redondeadas <= 0) return 'falta menos de una hora';
+  if (redondeadas === 1) return 'falta una hora';
+  return `faltan ${redondeadas} horas`;
+}
+
+// Un partido que ya se jugó y uno que empieza en veinte minutos no se rechazan
+// por la misma razón, y hablarle de plazo a quien mira una reserva de la semana
+// pasada sonaría a burla. Se dicen distinto.
+function motivoDeNoPoderCancelar(plazo) {
+  if (plazo.yaPaso) {
+    return 'El bloque de esta reserva ya pasó: no queda partido que anular.';
+  }
+  return `Esta reserva ya no se puede cancelar: ${faltanEnProsa(plazo.horas)} para el bloque, y el plazo para anular cierra ${HORAS_DE_PLAZO_PARA_CANCELAR} horas antes.`;
+}
+
+// Cliente y teléfono solo salen si la configuración lo pide; por omisión no
+// sale ninguno de los dos. Cuando salen, salen escapados, igual que en toda
+// pantalla del sistema (PANT-16).
+function datosDelClienteEnElDetalle(reserva) {
+  if (!DETALLE_MUESTRA_DATOS_DEL_CLIENTE) return '';
+  return `
+  <div class="detalle-fila"><dt>Cliente</dt><dd>${escaparHTML(reserva.cliente)}</dd></div>
+  <div class="detalle-fila"><dt>Teléfono</dt><dd class="dato">${escaparHTML(reserva.telefono || '')}</dd></div>`;
+}
+
+// GET /reserva/:id ----------------------------------------------------------
+// Qué es esa ocupación de la grilla y qué se puede hacer con ella. Antes había
+// que ir a la lista del día y buscarla a ojo entre las demás.
+app.get('/reserva/:id', asincrono(async (req, res) => {
+  const id = numeroDeReserva(req.params.id);
+  const reserva = id === null
+    ? null
+    : await bd.consultarUno('SELECT * FROM reservas WHERE id = ?', [id]);
+
+  if (!reserva) {
+    return res.send(pantallaDeReservaInexistente(id));
+  }
+
+  const plazo = plazoDeCancelacion(reserva);
+
+  // El enlace para cancelar aparece solo cuando cancelar es posible. Mostrarlo
+  // igual y contestar el rechazo un clic después sería hacerle recorrer a
+  // alguien un camino que ya se sabe cerrado.
+  let seccionDeCancelacion;
+  if (reserva.estado === 'cancelada') {
+    seccionDeCancelacion = `<div class="aviso" role="status"><p>Esta reserva está anulada: el bloque volvió a quedar libre y no hay nada más que cancelar.</p></div>`;
+  } else if (plazo.alcanza) {
+    seccionDeCancelacion = `<div class="aviso" role="status"><p>Todavía se puede cancelar: ${faltanEnProsa(plazo.horas)} para el inicio del bloque, y el plazo cierra ${HORAS_DE_PLAZO_PARA_CANCELAR} horas antes.</p></div>
+<p class="acciones"><a class="boton-anular" href="/reserva/${reserva.id}/cancelar">Cancelar reserva</a></p>`;
+  } else {
+    seccionDeCancelacion = `<div class="aviso" role="alert"><p>${motivoDeNoPoderCancelar(plazo)}</p></div>`;
+  }
+
+  const contenido = `
+<h2>Reserva <span class="dato">#${reserva.id}</span></h2>
+<dl class="detalle">
+  <div class="detalle-fila"><dt>Cancha</dt><dd>Cancha ${escaparHTML(reserva.cancha)}</dd></div>
+  <div class="detalle-fila"><dt>Fecha</dt><dd class="dato">${escaparHTML(reserva.fecha)}</dd></div>
+  <div class="detalle-fila"><dt>Hora</dt><dd class="dato">${escaparHTML(reserva.hora)}:00</dd></div>
+  <div class="detalle-fila"><dt>Precio cobrado</dt><dd class="dato">${formatColones(reserva.precio)}</dd></div>
+  <div class="detalle-fila"><dt>Estado</dt><dd><span class="pildora estado-${escaparHTML(reserva.estado)}">${escaparHTML(reserva.estado)}</span></dd></div>${datosDelClienteEnElDetalle(reserva)}
+</dl>
+${seccionDeCancelacion}
+<p class="acciones"><a href="/dia/${escaparHTML(reserva.fecha)}">Ver la lista del día</a> | <a href="/?fecha=${escaparHTML(reserva.fecha)}">Volver a disponibilidad</a></p>
+`;
+
+  res.send(layout(`Reserva #${reserva.id}`, contenido));
+}));
+
+// GET /reserva/:id/cancelar --------------------------------------------------
+// La confirmación. Cancelar es irreversible y ahora queda a dos clics de una
+// portada que abre cualquiera: entre el clic y la anulación tiene que haber una
+// pantalla que diga en voz alta qué se está por deshacer.
+//
+// Esta pantalla no escribe una sola letra en la base, y eso es deliberado: el
+// que cancela es el POST del formulario de abajo. Un GET que cancelara anularía
+// reservas solo con que alguien pegue el enlace en un chat que lo previsualiza.
+app.get('/reserva/:id/cancelar', asincrono(async (req, res) => {
+  const id = numeroDeReserva(req.params.id);
+  const reserva = id === null
+    ? null
+    : await bd.consultarUno('SELECT * FROM reservas WHERE id = ?', [id]);
+
+  if (!reserva) {
+    return res.send(pantallaDeReservaInexistente(id));
+  }
+
+  const volver = `<p class="acciones"><a href="/reserva/${reserva.id}">Volver a la reserva</a></p>`;
+
+  if (reserva.estado === 'cancelada') {
+    return res.send(layout('Reserva anulada', `<div class="aviso" role="status"><p>La reserva #${reserva.id} está anulada desde antes: no queda nada por cancelar.</p></div>${volver}`));
+  }
+
+  const plazo = plazoDeCancelacion(reserva);
+  if (!plazo.alcanza) {
+    return res.send(layout('Fuera de plazo', `<div class="aviso" role="alert"><p>${motivoDeNoPoderCancelar(plazo)}</p></div>${volver}`));
+  }
+
+  // Se nombra el bloque entero. Quien llegó desde la grilla hizo clic en una
+  // casilla, no en un número de reserva: la pantalla tiene que dejarle
+  // comprobar que la casilla era la que creía.
+  const contenido = `
+<h2>¿Cancelar la reserva <span class="dato">#${reserva.id}</span>?</h2>
+<div class="aviso" role="alert">
+  <p>Se va a cancelar la reserva #${reserva.id}: Cancha ${escaparHTML(reserva.cancha)}, <span class="dato">${escaparHTML(reserva.fecha)}</span> a las ${escaparHTML(reserva.hora)}:00.</p>
+  <p>La cancelación no se puede deshacer: el bloque vuelve a quedar libre y cualquiera puede tomarlo.</p>
+</div>
+<form method="post" action="/reservas/${reserva.id}/cancelar">
+  <button class="boton-anular" type="submit">Sí, cancelar la reserva</button>
+</form>
+<p class="acciones"><a href="/reserva/${reserva.id}">No, volver</a></p>
+`;
+
+  res.send(layout('Confirmar cancelación', contenido));
 }));
 
 // GET /dia/:fecha -------------------------------------------------------------
