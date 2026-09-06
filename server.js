@@ -124,12 +124,18 @@ async function checkDisponible(cancha, fecha, hora) {
 // 28 consultas: con la base en un archivo daba igual, con la base al otro lado
 // de la red son 28 viajes para pintar una tabla. Se traen todas juntas y se
 // contesta en memoria. El HTML que sale es exactamente el mismo.
+//
+// Devuelve un Map de `cancha-hora` al id de la reserva que ocupa el bloque, y
+// no un simple Set, porque la grilla ya no se limita a decir «ocupado»: ofrece
+// ir a administrar esa reserva, y para eso necesita su id. El id viaja junto
+// con la ocupación porque sale de la misma fila; preguntarlo después sería
+// volver a la base por algo que ya se trajo.
 async function bloquesOcupadosDelDia(fecha) {
   const filas = await bd.consultar(
-    `SELECT cancha, hora FROM reservas WHERE fecha = ? AND estado = 'activa'`,
+    `SELECT id, cancha, hora FROM reservas WHERE fecha = ? AND estado = 'activa'`,
     [fecha]
   );
-  return new Set(filas.map((f) => `${f.cancha}-${f.hora}`));
+  return new Map(filas.map((f) => [`${f.cancha}-${f.hora}`, f.id]));
 }
 
 async function getReservasDelDia(fecha) {
@@ -940,6 +946,37 @@ ${contenido}
 </html>`;
 }
 
+// Una fila de la grilla de disponibilidad. Las tres grillas del sistema —las
+// dos de la pantalla de inicio y la de cada cancha— pintaban la misma fila con
+// el mismo código copiado; al sumarles la columna de acción la copia pasaba de
+// molesta a peligrosa, porque un enlace corregido en una sola de ellas dejaba
+// las otras dos mintiendo. Acá vive una sola vez.
+//
+// `conTarifa` existe porque la pantalla de una cancha no habla de plata: ahí la
+// columna de tarifa no se muestra, y el enlace tampoco la menciona.
+function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa }) {
+  const clave = `${cancha}-${hora}`;
+  const libre = !ocupados.has(clave);
+
+  // Marca de presentación para los bloques que se juegan con luz encendida:
+  // deja que la grilla muestre de dónde sale el salto de tarifa. No decide
+  // nada; el precio lo sigue decidiendo tarifaDelBloque().
+  const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
+
+  const celdaEstado = `<td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td>`;
+  const celdaTarifa = conTarifa ? `<td>${formatColones(tarifaDelBloque(hora))}</td>` : '';
+
+  // El bloque libre invita a reservarlo con la fecha y la hora ya puestas; el
+  // ocupado lleva a la reserva que lo ocupa. Los dos llevan título y etiqueta
+  // accesible completos porque «Reservar» repetido catorce veces no le dice
+  // nada a quien navega la tabla con un lector de pantalla.
+  const celdaAccion = libre
+    ? `<td class="celda-accion"><a class="accion accion--reservar" href="/reservar?cancha=${cancha}&amp;fecha=${escaparHTML(fecha)}&amp;hora=${hora}" title="Reservar Cancha ${cancha} a las ${hora}:00" aria-label="Reservar Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Reservar</a></td>`
+    : `<td class="celda-accion"><a class="accion accion--administrar" href="/reserva/${ocupados.get(clave)}" title="Ver o administrar reserva de Cancha ${cancha} a las ${hora}:00" aria-label="Ver o administrar la reserva de Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Administrar</a></td>`;
+
+  return `<tr${conLuz}><td>${hora}:00</td>${celdaEstado}${celdaTarifa}${celdaAccion}</tr>`;
+}
+
 // GET / -------------------------------------------------------------------
 // Disponibilidad del día para ambas canchas + formulario de reserva.
 app.get('/', asincrono(async (req, res) => {
@@ -949,19 +986,8 @@ app.get('/', asincrono(async (req, res) => {
   let filasCancha1 = '';
   let filasCancha2 = '';
   for (let hora = 8; hora <= 21; hora++) {
-    // Tarifa del bloque para pintar la disponibilidad.
-    const precio = tarifaDelBloque(hora);
-
-    // Marca de presentación para los bloques que se juegan con luz encendida:
-    // deja que la grilla muestre de dónde sale el salto de tarifa. No decide
-    // nada; el precio lo sigue decidiendo tarifaDelBloque().
-    const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
-
-    const libre1 = !ocupados.has(`1-${hora}`);
-    filasCancha1 += `<tr${conLuz}><td>${hora}:00</td><td class="${libre1 ? 'libre' : 'ocupado'}">${libre1 ? 'Libre' : 'Ocupado'}</td><td>${formatColones(precio)}</td></tr>`;
-
-    const libre2 = !ocupados.has(`2-${hora}`);
-    filasCancha2 += `<tr${conLuz}><td>${hora}:00</td><td class="${libre2 ? 'libre' : 'ocupado'}">${libre2 ? 'Libre' : 'Ocupado'}</td><td>${formatColones(precio)}</td></tr>`;
+    filasCancha1 += filaDeBloque({ cancha: 1, hora, fecha, ocupados, conTarifa: true });
+    filasCancha2 += filaDeBloque({ cancha: 2, hora, fecha, ocupados, conTarifa: true });
   }
 
   const contenido = `
@@ -977,11 +1003,11 @@ app.get('/', asincrono(async (req, res) => {
 <div class="canchas">
 <section>
 <h3>Cancha 1</h3>
-<div class="tabla-marco"><table class="grilla"><tr><th>Hora</th><th>Estado</th><th>Tarifa</th></tr>${filasCancha1}</table></div>
+<div class="tabla-marco"><table class="grilla"><tr><th>Hora</th><th>Estado</th><th>Tarifa</th><th>Acción</th></tr>${filasCancha1}</table></div>
 </section>
 <section>
 <h3>Cancha 2</h3>
-<div class="tabla-marco"><table class="grilla"><tr><th>Hora</th><th>Estado</th><th>Tarifa</th></tr>${filasCancha2}</table></div>
+<div class="tabla-marco"><table class="grilla"><tr><th>Hora</th><th>Estado</th><th>Tarifa</th><th>Acción</th></tr>${filasCancha2}</table></div>
 </section>
 </div>
 
@@ -1042,9 +1068,9 @@ async function pantallaDeDisponibilidad(cancha, req, res) {
   const ocupados = await bloquesOcupadosDelDia(fecha);
   let filas = '';
   for (let hora = 8; hora <= 21; hora++) {
-    const libre = !ocupados.has(`${cancha}-${hora}`);
-    const conLuz = hora >= HORA_EN_QUE_ENCIENDE_LA_LUZ ? ' class="con-luz"' : '';
-    filas += `<tr${conLuz}><td>${hora}:00</td><td class="${libre ? 'libre' : 'ocupado'}">${libre ? 'Libre' : 'Ocupado'}</td></tr>`;
+    // Esta pantalla no habla de plata: es la vista de una sola cancha y solo
+    // informa ocupación, así que la fila sale sin la columna de tarifa.
+    filas += filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa: false });
   }
   const contenido = `
 <h2>Disponibilidad Cancha ${cancha} - <span class="dato">${escaparHTML(fecha)}</span></h2>
@@ -1055,7 +1081,7 @@ async function pantallaDeDisponibilidad(cancha, req, res) {
   </div>
   <button type="submit">Ver</button>
 </form>
-<div class="tabla-marco tabla-marco--angosto"><table class="grilla grilla--sin-tarifa"><tr><th>Hora</th><th>Estado</th></tr>${filas}</table></div>
+<div class="tabla-marco tabla-marco--angosto"><table class="grilla grilla--sin-tarifa"><tr><th>Hora</th><th>Estado</th><th>Acción</th></tr>${filas}</table></div>
 `;
   res.send(layout(`Cancha ${cancha}`, contenido));
 }
