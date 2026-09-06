@@ -20,12 +20,16 @@ el bloque pasa de ₡15.000 a ₡20.000: por eso las horas con luz van sobre fon
 marca de un foco, y una regla ámbar cruza la tabla exactamente donde se aprieta el interruptor.
 El precio deja de ser un número que sube sin explicación.
 
+Y cada bloque es una acción: el libre abre la reserva con su cancha, su fecha y su hora ya
+puestas; el ocupado lleva a la reserva que lo ocupa, para verla o anularla. Nadie tiene que
+volver a elegir a mano el bloque que acaba de mirar.
+
 ```
-  HORA     ESTADO              TARIFA
-  16:00    ⊘ Libre            ₡15.000
- ═══════════════════════════════════════  ← se encienden las luces
-  17:00 ⚲  ⊗ Ocupado          ₡20.000
-  18:00 ⚲  ⊘ Libre            ₡20.000
+  HORA     ESTADO              TARIFA     ACCIÓN
+  16:00    ⊘ Libre            ₡15.000    ⊕ Reservar
+ ═══════════════════════════════════════════════════  ← se encienden las luces
+  17:00 ⚲  ⊗ Ocupado          ₡20.000    ✎ Administrar
+  18:00 ⚲  ⊘ Libre            ₡20.000    ⊕ Reservar
 ```
 
 Lo demás que hay que saber para usarlo:
@@ -281,6 +285,9 @@ El sistema se recibió sin un solo documento. Estos se escribieron reconstruyén
 - **[docs/ENTREGA-CASO-6.md](docs/ENTREGA-CASO-6.md)** — la matriz requisito → evidencia del Caso
   práctico 6, con el enlace real de cada comprobación y el estado honesto de lo que no se pudo
   verificar.
+- **[docs/MEJORA-RESERVAS-INTERACTIVAS.md](docs/MEJORA-RESERVAS-INTERACTIVAS.md)** — los bloques de
+  la grilla se vuelven accionables. Mejora de producto posterior a los casos, con sus rutas nuevas,
+  sus decisiones y el relato de cómo la suite existente le fijó la forma al diseño.
 
 ## Cómo está armado
 

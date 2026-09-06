@@ -1,5 +1,13 @@
 # Estado del trabajo
 
+> **Este documento cierra el Caso práctico 5 y no se actualiza después.** Lo que dice más abajo era
+> cierto el día de esa entrega y se deja tal cual, porque es su evidencia. Lo que vino después vive
+> en sus propios documentos: el pipeline en [docs/CI-CD.md](docs/CI-CD.md) y
+> [docs/ENTREGA-CASO-6.md](docs/ENTREGA-CASO-6.md), y la mejora que volvió accionables los bloques
+> de la grilla en
+> [docs/MEJORA-RESERVAS-INTERACTIVAS.md](docs/MEJORA-RESERVAS-INTERACTIVAS.md), que llevó la suite
+> de 87 a 129 pruebas. El marcador de acá abajo dice 87 porque ese era el número entonces.
+
 **No queda nada pendiente.** El encargo está terminado: la red puesta, los hallazgos por escrito y
 cerrados, y la deuda de estructura pagada. Encima de eso, y pedida aparte, va una capa de
 presentación: [más abajo](#después-de-la-entrega-la-capa-visual).
