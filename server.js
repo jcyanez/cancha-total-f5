@@ -4,6 +4,7 @@
 // sabe si los datos están en un archivo o al otro lado de la red.
 
 const express = require('express');
+const fs = require('node:fs');
 const path = require('node:path');
 const bd = require('./bd.js');
 
@@ -183,6 +184,33 @@ function hoyISO() {
   return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
+// La foto de fondo de la cancha. El interruptor está en el sistema de
+// archivos, no en el código.
+//
+// Hoy no hay foto, y es una decisión y no un olvido: la única disponible pesa
+// 5 MB y es vertical, y en esta máquina no hay con qué optimizarla ni se
+// pueden agregar dependencias para hacerlo. Subirla así sería meter 5 MB en el
+// paquete de la función, en cada descarga de teléfono y en el historial de git
+// para siempre, a cambio de un adorno. Por eso el fondo se dibuja con
+// degradados —ver la sección «El fondo de cancha» de ESTILOS— y esta
+// comprobación queda puesta, cableada, para el día que aparezca una foto ya
+// optimizada.
+//
+// Ese día no hay que tocar una línea de código: se deja el archivo en
+// public/images/cancha-futbol-fondo.jpg y se reinicia el proceso. La carpeta
+// public/ ya se sirve entera con el express.static de más arriba, así que la
+// foto viaja por el mismo camino que el logo y con la misma caché; no hace
+// falta —ni hay que— montar otra ruta para ella.
+//
+// El disco se mira una sola vez, al cargar el módulo, y no en cada pedido: no
+// cambia durante la vida de un proceso, y en una función serverless el paquete
+// es de solo lectura. Un existsSync por visita sería una llamada al sistema por
+// página a cambio de nada.
+const RUTA_FOTO_DE_FONDO = '/images/cancha-futbol-fondo.jpg';
+const HAY_FOTO_DE_FONDO = fs.existsSync(
+  path.join(__dirname, 'public', 'images', 'cancha-futbol-fondo.jpg'),
+);
+
 // Hoja de estilo del sistema. Vive acá porque acá vive el HTML: no hay build,
 // ni bundler, ni archivos estáticos. Todo lo que se ve sale de este bloque.
 //
@@ -210,6 +238,28 @@ const ESTILOS = `
   --tinta-suave: #52605A;
   --linea: #D8E0D8;
   --borde-control: #7D8A82;
+
+  /* El fondo de cancha. Son tonos de --papel y no verdes de verdad, y eso es
+     lo que lo salva: el fondo tiene que sostener texto encima, así que la
+     diferencia entre una franja y la otra es de luz, no de color. La franja
+     base es el mismo papel de siempre; la otra baja un peldaño, lo justo para
+     que se lea el corte del césped y nada más.
+     Medido: --tinta sobre la franja oscura da 14,3:1 y --tinta-suave 5,7:1. */
+  --cesped-base: #F4F6F1;
+  --cesped-franja: #EAF0E5;
+
+  /* La cal de las marcas —la línea de medio campo y el círculo central—. Va
+     con alfa y no con un verde fijo porque tiene que valer sobre las dos
+     franjas sin saber cuál le tocó. Al 9% el trazo se ve y el peor contraste
+     que deja debajo sigue siendo 4,97:1: pasa, con margen y sin milagro. */
+  --cal: rgba(14, 92, 63, 0.09);
+
+  /* La capa de la foto y su velo. Apagadas mientras no exista el archivo; el
+     bloque «La foto de fondo» de más abajo las enciende si aparece. Se
+     declaran acá igual, apagadas, para que la regla del <body> sea una sola y
+     no dependa de si el archivo está o no. */
+  --foto-cancha: none;
+  --velo-cancha: transparent;
 
   /* La luz: por qué la tarifa sube a las 17:00.
      Son tres decisiones distintas y no una sola: el papel cálido de la banda
@@ -317,6 +367,17 @@ const ESTILOS = `
     --linea: #2B362F;
     --borde-control: #6D7A72;
 
+    /* De noche el césped no se ilumina: se oscurece. Es el mismo gesto al
+       revés —la franja se separa del papel hacia arriba en vez de hacia
+       abajo— y la cal cambia de tinta, porque un verde oscuro sobre papel
+       oscuro no dibuja nada.
+       Medido: --tinta sobre la franja da 14,8:1 y --tinta-suave 8,3:1. */
+    --cesped-base: #0E1512;
+    --cesped-franja: #131C17;
+    --cal: rgba(111, 207, 162, 0.09);
+    --foto-cancha: none;
+    --velo-cancha: transparent;
+
     --papel-luz: #26200F;
     --luz: #E0A93F;
     /* Sobre papel oscuro el ámbar ya se lee: la tinta y el trazo coinciden. */
@@ -350,13 +411,86 @@ const ESTILOS = `
     --sombra-2: 0 4px 6px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.55);
   }
 }
+${HAY_FOTO_DE_FONDO ? `
+/* --- La foto de fondo -----------------------------------------------------
+   Este bloque solo se imprime si el archivo existe en el disco. Cuando existe,
+   enciende los dos tokens que el <body> ya está consumiendo: la foto pasa a
+   ser la capa de arriba del fondo y el velo se vuelve opaco.
+   El velo no es decoración: es lo que hace que el contraste no dependa de la
+   foto. Al 90% —92% de noche— el peor píxel imaginable, negro puro o blanco
+   puro, deja el fondo efectivo en un valor que sigue dando 4,84:1 contra
+   --tinta-suave y 12:1 contra --tinta. Con una foto real el número solo puede
+   mejorar, porque ninguna foto es negro puro de punta a punta. */
+:root {
+  --foto-cancha: url("${RUTA_FOTO_DE_FONDO}");
+  --velo-cancha: rgba(244, 246, 241, 0.90);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Mismo velo, del color del papel de noche y un punto más cerrado: sobre
+       fondo oscuro es el blanco de la foto el que amenaza el contraste, no el
+       negro. */
+    --velo-cancha: rgba(14, 21, 18, 0.92);
+  }
+}
+` : ''}
 
 /* --- Base ---------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* El fondo de cancha ------------------------------------------------------
+   Cinco capas apiladas. En CSS la primera de la lista es la que queda encima,
+   así que se leen de arriba hacia abajo como se ven:
+
+     1. el velo, que garantiza el contraste (transparente si no hay foto),
+     2. la foto (apagada hoy: el token vale «none»),
+     3. el círculo central,
+     4. la línea de medio campo,
+     5. las franjas del corte del césped.
+
+   Las marcas son dos trazos de cal y no un dibujo: la cancha se sugiere, no se
+   ilustra. Un círculo de radio en vmin y una línea de 2 px es todo, y con el
+   contenido encima apenas se adivinan por los bordes de la página, que es
+   exactamente lo que se quiere de un fondo.
+
+   «circle» en el radial no es adorno de sintaxis: obliga a los dos radios a
+   ser iguales, así que el círculo es un círculo en cualquier proporción de
+   pantalla y no un huevo. Las franjas son verticales y el degradado que las
+   repite no tiene fin, así que ningún ancho las deforma.
+
+   «fixed» clava el fondo al viewport. Además de dejar la cancha quieta
+   mientras el contenido pasa por delante, evita que el degradado se estire a
+   lo alto de todo el documento: sin eso, en una página larga el círculo se
+   iría al medio del scroll y la línea de medio campo quedaría fuera de la
+   vista. Con «fixed» el área de pintado es siempre la ventana, y «cover»
+   sobre un degradado —que no tiene tamaño propio— la llena exacta. Un fondo
+   nunca genera barra de desplazamiento: recorta, no empuja, así que la página
+   sigue sin scrollear de lado. Las tablas anchas siguen scrolleando dentro de
+   su .tabla-marco, como siempre.
+
+   Sin animación, a propósito. Un fondo que se mueve no aporta nada, distrae de
+   lo único que importa acá —quién juega y a qué hora— y le daría trabajo al
+   bloque de prefers-reduced-motion del final. */
 body {
   margin: 0;
-  background: var(--papel);
+  background-color: var(--cesped-base);
+  background-image:
+    linear-gradient(var(--velo-cancha), var(--velo-cancha)),
+    var(--foto-cancha),
+    radial-gradient(circle at 50% 50%,
+      transparent 17.4vmin, var(--cal) 17.5vmin,
+      var(--cal) 18vmin, transparent 18.1vmin),
+    linear-gradient(to bottom,
+      transparent calc(50% - 1px), var(--cal) calc(50% - 1px),
+      var(--cal) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(to right,
+      var(--cesped-franja) 0, var(--cesped-franja) 7rem,
+      var(--cesped-base) 7rem, var(--cesped-base) 14rem);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
   color: var(--tinta);
   font-family: var(--fuente-ui);
   font-size: var(--texto-base);
