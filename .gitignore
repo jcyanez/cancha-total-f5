@@ -15,3 +15,10 @@ reservas.db-journal
 # No son secretos de la misma clase que un token, pero identifican la cuenta y
 # no hacen falta en el repositorio: en el pipeline llegan por Secrets.
 .vercel
+
+# La foto de fondo sin optimizar, tal como llega de camara: 5 MB en vertical.
+# La version que el sistema usa es public/images/cancha-futbol-fondo.jpg, ya
+# recortada y liviana, y esa si se versiona. El original queda fuera para que
+# un "git add -A" distraido no lo fije en el historial, donde no se puede
+# borrar.
+/fondocancha.jpg
