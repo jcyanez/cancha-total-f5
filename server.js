@@ -273,6 +273,12 @@ const ESTILOS = `
   --radio-2: 8px;
   --radio-3: 999px;
   --sombra-1: 0 1px 2px rgba(20, 33, 27, 0.06), 0 1px 3px rgba(20, 33, 27, 0.08);
+  /* Lo que flota por encima del documento —el globo de ayuda y el aviso
+     flotante— necesita una sombra más larga que la de una tarjeta apoyada en
+     la página: es la única señal de que está *sobre* el contenido y no
+     adentro de él. Una sola sombra para las dos piezas, porque están a la
+     misma altura. */
+  --sombra-2: 0 4px 6px rgba(20, 33, 27, 0.10), 0 10px 24px rgba(20, 33, 27, 0.18);
 
   /* Área táctil mínima (Apple HIG 44pt) */
   --toque: 44px;
@@ -338,6 +344,10 @@ const ESTILOS = `
     --boton-tinta: #06251A;
 
     --sombra-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+    /* De noche la sombra no separa por oscuridad —el fondo ya es oscuro— sino
+       por densidad: se cierra más y se pone más negra, para que la pieza
+       flotante siga leyéndose como flotante. */
+    --sombra-2: 0 4px 6px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.55);
   }
 }
 
@@ -815,6 +825,10 @@ tr:last-child { background-image: none; }
   padding: var(--e-1) var(--e-3);
   text-align: left;
   white-space: nowrap;
+  /* El globo de ayuda del enlace se cuelga de la celda y no del enlace: el
+     enlace mide 44 px y el globo necesita crecer hacia la izquierda por encima
+     de las columnas vecinas. Ver el bloque «El globo de ayuda». */
+  position: relative;
 }
 
 .accion {
@@ -886,6 +900,110 @@ tr:last-child { background-image: none; }
   outline: 3px solid var(--cancha);
   outline-offset: 2px;
   background: var(--realce-suave);
+}
+
+/* --- El globo de ayuda ----------------------------------------------------
+   El atributo «title» del navegador tiene tres defectos que no se pueden
+   arreglar: no aparece nunca con el teclado, no aparece nunca en una pantalla
+   táctil, y no se puede estilar. Se reemplazó por «data-sugerencia», que es un
+   dato nuestro y se dibuja acá. El nombre del atributo no es «title» a
+   propósito: con los dos puestos el navegador mostraría dos globos, uno suyo y
+   uno nuestro, diciendo lo mismo.
+
+   Para el lector de pantalla el globo no existe, y está bien que no exista: el
+   control ya lleva «aria-label» con exactamente esa información. Un
+   «aria-describedby» no serviría —los pseudo-elementos no son referenciables—
+   y aunque sirviera solo lograría que la frase se leyera dos veces.
+
+   El texto sale de «attr()», así que lo que se ve es el mismo dato que viaja
+   en el HTML: no hay forma de que el globo diga una cosa y la etiqueta
+   accesible otra. */
+[data-sugerencia]::after {
+  content: attr(data-sugerencia);
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  /* El tope de ancho es lo que garantiza que el globo quepa: 17rem son 272 px,
+     menos que el ancho mínimo de cualquiera de las tres grillas del sistema,
+     así que el globo nunca empuja el marco ni saca un scroll que no estaba. */
+  max-width: 17rem;
+  padding: var(--e-1) var(--e-2);
+  border-radius: var(--radio-1);
+  /* El globo se lee sobre el tablero, que es la única superficie oscura del
+     sistema con los dos temas: así se distingue de una tarjeta de contenido a
+     primera vista, de día y de noche. */
+  background: var(--tablero-fondo);
+  color: var(--tablero-tinta);
+  font-family: var(--fuente-ui);
+  font-size: var(--texto-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  box-shadow: var(--sombra-2);
+  /* Escondido con visibility y no con display: así la transición tiene algo
+     que animar, y el globo sigue sin ocupar lugar ni recibir el puntero. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+/* Puntero y teclado, siempre juntos. El :focus-visible es la mitad que el
+   «title» del navegador nunca tuvo. */
+[data-sugerencia]:hover::after,
+[data-sugerencia]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* En la grilla el globo sale hacia la izquierda y centrado en la fila, no
+   arriba ni abajo. No es una preferencia estética: el marco de la tabla
+   scrollea, y todo lo que se salga de su caja queda recortado o le saca una
+   barra que nadie pidió. Saliendo hacia la izquierda —la columna de acción es
+   la última— y quedándose dentro del alto de la fila, que lo fija el área
+   táctil de 44 px del enlace, el globo vive siempre adentro del marco. */
+.accion[data-sugerencia]::after {
+  top: 50%;
+  right: calc(100% - var(--e-1));
+  transform: translateY(-50%);
+}
+
+/* --- El control que no se puede apretar -----------------------------------
+   En la ficha de una reserva fuera de plazo no hay botón de cancelar, y esa
+   ausencia deja una pregunta sin contestar: ¿no está porque no se puede, o
+   porque la pantalla se olvidó? El lugar del botón queda ocupado por el botón
+   mismo, vedado: se ve que existe, se ve que no se puede, y el globo dice por
+   qué.
+
+   «aria-disabled» y no «disabled»: un control deshabilitado de verdad sale del
+   recorrido del teclado, y entonces quien navega con teclado se queda sin la
+   única explicación. Así queda enfocable, se anuncia como no disponible, y al
+   apretarlo no pasa nada —que es exactamente lo que declara.
+
+   Acá el globo va arriba: no hay marco que scrollee y sobra lugar. */
+.boton-vedado {
+  position: relative;
+  color: var(--tinta-suave);
+  background: var(--papel);
+  border-style: dashed;
+  border-color: var(--linea);
+  cursor: not-allowed;
+}
+
+/* El hover del botón normal promete que algo va a pasar. Acá no pasa nada, y
+   la forma tiene que decirlo también cuando el puntero pasa por encima. */
+.boton-vedado:hover {
+  color: var(--tinta-suave);
+  background: var(--papel);
+  border-color: var(--linea);
+}
+
+.boton-vedado[data-sugerencia]::after {
+  bottom: calc(100% + var(--e-1));
+  left: 0;
 }
 
 /* --- La fila con la que se está trabajando -------------------------------
@@ -1256,6 +1374,154 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
 
 .rotulo + h2 { margin-top: 0; }
 
+/* --- Avisos flotantes ----------------------------------------------------
+   El sistema navega con recargas de página entera: no hay evento de cliente
+   que sobreviva a un clic, así que el aviso flotante no lo dispara el
+   navegador, lo emite el servidor con la página. Por eso existe y por eso
+   funciona sin una línea de JavaScript.
+
+   Un aviso flotante solo se emite cuando dice algo que la página no dice: la
+   pieza que ya existía —«.ok», «.error», «.aviso»— es la que lleva el mensaje
+   principal, y repetirlo acá arriba sería hacérselo leer dos veces a quien
+   ve y anunciar dos veces a quien escucha.
+
+   El contenedor es solo una percha: no tiene rol, no recibe el puntero
+   («pointer-events: none») y ni siquiera se imprime cuando no hay nada que
+   decir. El rol viaja en cada aviso y no en el contenedor por dos motivos: un
+   error y un informativo emitidos juntos conservan el orden en que el servidor
+   los puso —con un contenedor por rol habría dos pilas y ese orden se
+   perdería—, y ninguna página sin avisos queda con una región viva vacía
+   colgando del documento. */
+.avisos-flotantes {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: var(--e-2);
+  /* Ancho acotado y nunca mayor que la pantalla: en el teléfono ocupa el ancho
+     completo menos el aire de los costados, y en el escritorio se queda en una
+     columna angosta abajo a la derecha. Ese rincón está libre en este sistema:
+     los botones que hacen algo —el de reservar, el de anular— son de la
+     columna de contenido y quedan a la izquierda. */
+  width: min(26rem, 100%);
+  padding: var(--e-4);
+  pointer-events: none;
+}
+
+/* La casilla que cierra el aviso. Está escondida a la vista pero sigue en el
+   recorrido del teclado: lo que se ve y se toca es su <label>, que es el botón
+   de cerrar. Con esto el aviso se cierra sin JavaScript —no hay promesa que el
+   navegador no pueda cumplir— y el JavaScript queda para lo único que el CSS
+   no puede hacer con honestidad: contar seis segundos. */
+.cierre-flotante {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cierre-flotante:checked + .flotante { display: none; }
+
+.flotante {
+  /* El contenedor deja pasar el clic; el aviso, no. Nada de la página queda
+     atrapado detrás de una capa invisible. */
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--e-3);
+  align-items: start;
+  padding: var(--e-3);
+  color: var(--tinta);
+  background: var(--fondo-aviso);
+  border: 1px solid var(--linea);
+  border-left: var(--e-1) solid var(--acento-aviso);
+  border-radius: var(--radio-2);
+  box-shadow: var(--sombra-2);
+  animation: entra-flotante 160ms ease-out;
+}
+
+/* Los mismos dos pares de color que usan los avisos de bloque, para que un
+   error sea del mismo color esté donde esté. */
+.flotante--info {
+  --acento-aviso: var(--info);
+  --fondo-aviso: var(--info-fondo);
+  --icono: var(--i-info);
+}
+
+.flotante--error {
+  --acento-aviso: var(--ocupado);
+  --fondo-aviso: var(--ocupado-fondo);
+  --icono: var(--i-warning);
+}
+
+.flotante::before {
+  content: "";
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  background-color: var(--acento-aviso);
+  -webkit-mask: var(--icono) center / contain no-repeat;
+  mask: var(--icono) center / contain no-repeat;
+}
+
+.flotante p {
+  margin: 0;
+  font-size: var(--texto-sm);
+}
+
+/* El botón de cerrar conserva sus 44 px de área táctil y se come el relleno de
+   la esquina con márgenes negativos, para no ensanchar el aviso por él. */
+.cerrar-flotante {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--toque);
+  min-height: var(--toque);
+  margin: calc(var(--e-2) * -1) calc(var(--e-2) * -1) 0 0;
+  border-radius: var(--radio-1);
+  color: var(--tinta-suave);
+  cursor: pointer;
+}
+
+.cerrar-flotante::before {
+  content: "";
+  width: 1.1rem;
+  height: 1.1rem;
+  background-color: currentColor;
+  -webkit-mask: var(--i-x-circle) center / contain no-repeat;
+  mask: var(--i-x-circle) center / contain no-repeat;
+}
+
+.cerrar-flotante:hover {
+  color: var(--tinta);
+  background: var(--realce-suave);
+}
+
+/* El foco vive en la casilla, que no se ve: se dibuja sobre el botón, que es
+   lo que la persona cree estar enfocando. */
+.cierre-flotante:focus-visible + .flotante .cerrar-flotante {
+  outline: 3px solid var(--cancha);
+  outline-offset: 2px;
+}
+
+/* La entrada es un solo paso de 12 px. Quien pidió menos movimiento no la ve:
+   el bloque de prefers-reduced-motion apaga toda animación del documento y el
+   aviso aparece puesto. Por eso el apagado automático se cuenta con
+   JavaScript y no con una animación: una animación de seis segundos, con menos
+   movimiento pedido, dura 0,01 ms y el aviso desaparecería antes de leerse. */
+@keyframes entra-flotante {
+  from {
+    opacity: 0;
+    transform: translateY(var(--e-3));
+  }
+}
+
 /* --- El teléfono ---------------------------------------------------------
    A 360 px la grilla ya no entra entera: antes de dejar que el marco scrollee
    se le saca todo el aire que sobra, que es el de los rellenos laterales. La
@@ -1287,7 +1553,70 @@ button:hover { background: var(--libre-fondo); border-color: var(--cancha); }
 }
 `;
 
-function layout(titulo, contenido) {
+// Los avisos flotantes -----------------------------------------------------
+// Un aviso informativo se apaga solo a los seis segundos; uno de error, nunca.
+// La diferencia no es de estilo: un informativo confirma algo que ya pasó y su
+// utilidad se agota al leerlo, mientras que un error describe algo que sigue
+// sin resolverse y hacerlo desaparecer solo sería esconder el problema.
+const VIDA_DEL_AVISO_INFORMATIVO = 6000;
+
+// El apagado automático es lo único que no se puede hacer sin JavaScript sin
+// mentir: una animación de CSS de seis segundos queda reducida a 0,01 ms
+// cuando se pide menos movimiento, y el aviso se iría antes de poder leerse.
+// Acá se cuenta el tiempo de verdad, y no se apaga un aviso que tenga el foco
+// adentro o el puntero encima: nadie pierde el foco ni la frase que está
+// leyendo por un reloj. El cierre se hace marcando la misma casilla que marca
+// el botón, así que hay una sola manera de esconder un aviso.
+function guionDeAvisosFlotantes() {
+  return `<script>
+  (function () {
+    var flotantes = document.querySelectorAll('.flotante[data-vida]');
+    Array.prototype.forEach.call(flotantes, function (flotante) {
+      var vida = Number(flotante.getAttribute('data-vida'));
+      var cierre = document.getElementById(flotante.getAttribute('data-cierre'));
+      if (!vida || !cierre) return;
+      window.setTimeout(function apagar() {
+        if (flotante.contains(document.activeElement) || flotante.matches(':hover')) {
+          window.setTimeout(apagar, vida);
+          return;
+        }
+        cierre.checked = true;
+      }, vida);
+    });
+  })();
+</script>`;
+}
+
+// La región de avisos flotantes. Sin avisos no se imprime nada: una página que
+// no tiene nada que decir no deja un contenedor vacío ni un guion colgado.
+//
+// Cada aviso lleva su rol —`status` para un informativo, `alert` para un
+// error— y su propio par casilla + botón de cerrar. La casilla va *antes* del
+// aviso porque el CSS la usa como hermana anterior para esconderlo, que es lo
+// que permite cerrarlo sin JavaScript.
+function regionDeAvisosFlotantes(avisos) {
+  if (!Array.isArray(avisos) || avisos.length === 0) return '';
+
+  const piezas = avisos.map((aviso, indice) => {
+    const esError = aviso.tipo === 'error';
+    const id = `aviso-flotante-${indice + 1}`;
+    const vida = esError ? '' : ` data-vida="${VIDA_DEL_AVISO_INFORMATIVO}"`;
+    return `<input class="cierre-flotante" type="checkbox" id="${id}">
+  <div class="flotante flotante--${esError ? 'error' : 'info'}" role="${esError ? 'alert' : 'status'}" data-cierre="${id}"${vida}>
+    <p>${escaparHTML(aviso.texto)}</p>
+    <label class="cerrar-flotante" for="${id}"><span class="oculto">Cerrar este aviso</span></label>
+  </div>`;
+  }).join('\n  ');
+
+  return `<div class="avisos-flotantes">
+  ${piezas}
+</div>
+${guionDeAvisosFlotantes()}`;
+}
+
+// El tercer parámetro es opcional: las pantallas que no tienen nada extra que
+// decir llaman a layout() exactamente como lo llamaban antes.
+function layout(titulo, contenido, avisos = []) {
   return `<!DOCTYPE html>
 <html lang="es-CR">
 <head>
@@ -1308,6 +1637,7 @@ function layout(titulo, contenido) {
     </nav>
   </div>
 </header>
+${regionDeAvisosFlotantes(avisos)}
 <main id="contenido">
 ${contenido}
 </main>
@@ -1367,12 +1697,19 @@ function filaDeBloque({ cancha, hora, fecha, ocupados, conTarifa, seleccion }) {
   const celdaTarifa = conTarifa ? `<td>${formatColones(tarifaDelBloque(hora))}</td>` : '';
 
   // El bloque libre invita a reservarlo con la fecha y la hora ya puestas; el
-  // ocupado lleva a la reserva que lo ocupa. Los dos llevan título y etiqueta
-  // accesible completos porque «Reservar» repetido catorce veces no le dice
-  // nada a quien navega la tabla con un lector de pantalla.
+  // ocupado lleva a la reserva que lo ocupa. Los dos llevan sugerencia y
+  // etiqueta accesible completas porque «Reservar» repetido catorce veces no le
+  // dice nada a quien navega la tabla con un lector de pantalla.
+  //
+  // La sugerencia viaja en `data-sugerencia` y no en `title`: el globo lo
+  // dibuja la hoja de estilo, así que aparece también con el teclado y en una
+  // pantalla táctil, que es donde el `title` del navegador nunca aparece. Con
+  // los dos atributos puestos se verían dos globos diciendo lo mismo, así que
+  // el `title` se fue. El `aria-label` se queda tal cual estaba: es el que le
+  // dice al lector de pantalla lo mismo que el globo le dice al ojo.
   const celdaAccion = libre
-    ? `<td class="celda-accion"><a class="accion accion--reservar" href="/reservar?cancha=${cancha}&amp;fecha=${escaparHTML(fecha)}&amp;hora=${hora}" title="Reservar Cancha ${cancha} a las ${hora}:00" aria-label="Reservar Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Reservar</a></td>`
-    : `<td class="celda-accion"><a class="accion accion--administrar" href="/reserva/${ocupados.get(clave)}" title="Ver o administrar reserva de Cancha ${cancha} a las ${hora}:00" aria-label="Ver o administrar la reserva de Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Administrar</a></td>`;
+    ? `<td class="celda-accion"><a class="accion accion--reservar" href="/reservar?cancha=${cancha}&amp;fecha=${escaparHTML(fecha)}&amp;hora=${hora}" data-sugerencia="Reservar Cancha ${cancha} a las ${hora}:00" aria-label="Reservar Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Reservar</a></td>`
+    : `<td class="celda-accion"><a class="accion accion--administrar" href="/reserva/${ocupados.get(clave)}" data-sugerencia="Ver o administrar reserva de Cancha ${cancha} a las ${hora}:00" aria-label="Ver o administrar la reserva de Cancha ${cancha} a las ${hora}:00 del ${escaparHTML(fecha)}">Administrar</a></td>`;
 
   return `<tr class="${clases.join(' ')}"><td>${hora}:00</td>${celdaEstado}${celdaTarifa}${celdaAccion}</tr>`;
 }
@@ -1588,7 +1925,15 @@ app.get('/reservar', asincrono(async (req, res) => {
   const idQueOcupa = ocupados.get(`${cancha}-${hora}`);
   if (idQueOcupa !== undefined) {
     const contenidoOcupado = `<div class="error" role="alert"><p>Ese bloque ya está ocupado: cancha ${cancha}, ${escaparHTML(fecha)} a las ${hora}:00.</p><p>Elegí otro bloque libre de la grilla o revisá la reserva que lo ocupa.</p></div><p class="acciones"><a href="/reserva/${idQueOcupa}">Administrar la reserva #${idQueOcupa}</a> | <a href="/?fecha=${escaparHTML(fecha)}">Volver a disponibilidad</a></p>`;
-    return res.send(layout('Bloque ocupado', contenidoOcupado));
+    // El aviso flotante no repite el error de la página: cuenta lo que la
+    // página no cuenta, que es de dónde salió el choque. El bloque figuraba
+    // libre cuando se pintó la grilla —de ahí venía este enlace— y dejó de
+    // estarlo en el medio. Sin eso, quien hizo clic en una casilla que decía
+    // «Libre» se queda pensando que se equivocó de casilla.
+    return res.send(layout('Bloque ocupado', contenidoOcupado, [{
+      tipo: 'error',
+      texto: 'Ese bloque figuraba libre en la grilla desde la que llegaste: alguien lo tomó entre que esa grilla se dibujó y este clic.',
+    }]));
   }
 
   // La tarifa que se muestra es la del bloque y nada más. El descuento de
@@ -1606,7 +1951,17 @@ ${formularioDeReserva({ cancha, fecha, hora, preseleccionar: true })}
 ${guionDePrecioEstimado(fecha)}
 `;
 
-  res.send(layout('Nueva reserva', contenido));
+  // Lo que el aviso flotante agrega no son los tres valores —el título y el
+  // formulario ya los muestran— sino su origen: los campos vinieron del bloque
+  // en el que se hizo clic y no de un valor por omisión. Es la única forma de
+  // distinguir «el formulario ya sabe a qué bloque voy» de «el formulario
+  // arrancó en la primera opción de la lista», que se ven igual.
+  const avisoDePrecarga = {
+    tipo: 'info',
+    texto: `Cancha, fecha y hora quedaron completadas con el bloque que elegiste: Cancha ${cancha}, ${fecha} a las ${hora}:00.`,
+  };
+
+  res.send(layout('Nueva reserva', contenido, [avisoDePrecarga]));
 }));
 
 // POST /reservas ------------------------------------------------------------
@@ -1820,7 +2175,21 @@ app.get('/reserva/:id', asincrono(async (req, res) => {
     seccionDeCancelacion = `<div class="aviso" role="status">${distintivoPuede}<p>Todavía se puede cancelar: ${faltanEnProsa(plazo.horas)} para el inicio del bloque, y el plazo cierra ${HORAS_DE_PLAZO_PARA_CANCELAR} horas antes.</p></div>
 <p class="acciones"><a class="boton-anular" href="/reserva/${reserva.id}/cancelar">Cancelar reserva</a></p>`;
   } else {
-    seccionDeCancelacion = `<div class="aviso" role="alert">${distintivoNoPuede}<p>${motivoDeNoPoderCancelar(plazo)}</p></div>`;
+    // El botón no se puede apretar, pero el lugar del botón sí se ocupa. Que
+    // el control desaparezca sin dejar rastro obliga a deducir por qué no
+    // está; dejándolo vedado, con su globo encima, la respuesta está donde se
+    // fue a buscarla.
+    //
+    // El globo dice la regla y no la cuenta: «faltan menos de 24 horas» es
+    // cierto mientras el bloque no haya empezado. Para una reserva cuyo bloque
+    // ya pasó esa frase sería falsa —no faltan horas, sobran—, así que ese
+    // caso lleva su propia frase. El párrafo de al lado sigue dando el detalle
+    // en prosa; el globo es el resumen que se lee sin soltar el control.
+    const sugerencia = plazo.yaPaso
+      ? 'No se puede cancelar porque el bloque ya pasó'
+      : 'No se puede cancelar porque faltan menos de 24 horas';
+    seccionDeCancelacion = `<div class="aviso" role="alert">${distintivoNoPuede}<p>${motivoDeNoPoderCancelar(plazo)}</p></div>
+<p class="acciones"><button class="boton-vedado" type="button" aria-disabled="true" data-sugerencia="${sugerencia}">Cancelar reserva</button></p>`;
   }
 
   const contenido = `
@@ -1866,7 +2235,14 @@ app.get('/reserva/:id/cancelar', asincrono(async (req, res) => {
 
   const plazo = plazoDeCancelacion(reserva);
   if (!plazo.alcanza) {
-    return res.send(layout('Fuera de plazo', `<div class="aviso" role="alert"><p>${motivoDeNoPoderCancelar(plazo)}</p></div>${volver}`));
+    // La página explica por qué no se puede; lo que no dice —y es lo que
+    // preocupa a quien acaba de pedir una cancelación— es qué pasó con la
+    // reserva. Esta pantalla no escribe en la base, así que la respuesta es
+    // «nada», y conviene decirla en voz alta en vez de dejarla deducir.
+    return res.send(layout('Fuera de plazo', `<div class="aviso" role="alert"><p>${motivoDeNoPoderCancelar(plazo)}</p></div>${volver}`, [{
+      tipo: 'error',
+      texto: `No se canceló nada: la reserva #${reserva.id} sigue activa, tal como estaba.`,
+    }]));
   }
 
   // Se nombra el bloque entero. Quien llegó desde la grilla hizo clic en una
