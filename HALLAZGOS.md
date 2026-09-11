@@ -8,7 +8,9 @@ calidad sirva desde el primer día sin ocultar lo que falta.
 Se cierran en los turnos de refactorización, **quitando la marca** de la prueba y sin tocar la
 prueba misma. El avance se mide contando marcas quitadas.
 
-**Estado:** 87 pruebas — **las 87 pasan, ninguna marcada**, `verificar.sh` sale en 0.
+**Estado:** 129 pruebas — **las 129 pasan, 0 fallos, ninguna marcada como fallo esperado**,
+`verificar.sh` sale en 0. *(La cifra era 87 hasta la mejora de reservas interactivas, que sumó 42
+pruebas; ver [`docs/MEJORA-RESERVAS-INTERACTIVAS.md`](docs/MEJORA-RESERVAS-INTERACTIVAS.md).)*
 **Los seis hallazgos de comportamiento, cerrados. Las diez deudas de estructura, pagadas** —`E-4`
 en parte, con su motivo escrito, y `E-10` reclasificada como `C-6`. El avance de cierre se lleva en [`STATUS.md`](STATUS.md).
 
@@ -44,6 +46,41 @@ El código hace algo que contradice la especificación.
 **Un mismo hallazgo, varias pruebas.** C-1 tiene tres porque la tarifa está calculada en tres
 lugares distintos (ver `E-5`): arreglarla en uno solo deja los otros dos en rojo. C-2 tiene cuatro
 porque son cuatro bordes distintos de la misma regla.
+
+---
+
+## Cumplimiento del Caso 7 (`H-2`..`H-8`)
+
+La consigna del Caso 7 numera **siete** hallazgos de comportamiento, `H-2` a `H-8`; este
+repositorio numera **seis**, `C-1` a `C-6`. La diferencia es de numeración, no de alcance: `C-2`
+enuncia **dos condiciones observables** de `RN-13` —el teléfono es obligatorio, y el teléfono tiene
+exactamente ocho dígitos— que ya tienen pruebas separadas en `pruebas/validaciones.test.js` y dos
+ramas separadas en `server.js` (`if (!telefono)` / `else if (!/^[0-9]{8}$/.test(telefono))`).
+Desdobladas, las condiciones observables son siete.
+
+Esto es una **correspondencia declarada para efectos de la consigna**, no una renumeración del
+repositorio: `C-1`..`C-6` siguen siendo los identificadores vigentes, y los commits de cierre citan
+esos números. La consigna del Caso 7 **no está en el repositorio**, así que el orden `H-2`..`H-8` se
+alinea con el orden de `C-1`..`C-6` tal como aparece arriba; lo que sí está verificado contra el
+código y las pruebas es que existen siete condiciones observables cerradas, una por fila.
+
+| # de consigna | Hallazgo del repositorio | Condición observable | Pruebas | Estado |
+|---|---|---|---|---|
+| **H-2** | `C-1` | `RN-19` — la hora con luz cuesta ₡20.000 desde las 17:00 | `pruebas/tarifas.test.js` (3) | **Cerrado** |
+| **H-3** | `C-2` (a) | `RN-13` — el teléfono es **obligatorio** | `pruebas/validaciones.test.js` → *sin teléfono no se registra la reserva* | **Cerrado** |
+| **H-4** | `C-2` (b) | `RN-13` — el teléfono tiene **exactamente ocho dígitos** | `pruebas/validaciones.test.js` → *siete dígitos*, *nueve dígitos*, *con letras* | **Cerrado** |
+| **H-5** | `C-3` | `RN-24` — las canceladas no cuentan para cliente frecuente | `pruebas/cliente-frecuente.test.js` (1) | **Cerrado** |
+| **H-6** | `C-4` | `RN-23` — «el mismo mes» es el mes de **registro** | `pruebas/cliente-frecuente.test.js` (2) | **Cerrado** |
+| **H-7** | `C-5` | `RN-27`, `RN-28` — se cancela hasta 24 horas antes del **inicio** | `pruebas/cancelacion.test.js` (1) | **Cerrado** |
+| **H-8** | `C-6` | `PANT-16` — lo que escribe el cliente se muestra como texto | `pruebas/pantallas.test.js` (1) | **Cerrado** |
+
+**Cómo se comprobó cada «cerrado».** Para las siete filas: la prueba citada existe con ese nombre,
+**no conserva marca `{ todo: ... }`** —`grep -rn "todo" pruebas/` no devuelve ninguna opción de
+prueba, solo prosa— y el código de producción hace lo que el cierre declara
+(`HORA_EN_QUE_ENCIENDE_LA_LUZ = 17` y `tarifaDelBloque()` en `server.js`; las dos ramas de teléfono
+en `POST /reservas`; `estado = 'activa'` y `substr(creada_en, 1, 7)` en la misma consulta de conteo;
+`horasHastaElPartido()` contra `HORAS_DE_PLAZO_PARA_CANCELAR`; `escaparHTML()` y
+`escaparParaGuion()`). Ningún archivo de `pruebas/` se tocó en esta auditoría.
 
 ---
 

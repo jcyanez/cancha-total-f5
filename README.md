@@ -74,7 +74,7 @@ ver acá.
 | Etapa | Qué revisa |
 |---|---|
 | Lint | ESLint 9, reglas de defecto (no de estilo) |
-| Pruebas | las 87 pruebas de `node:test` |
+| Pruebas | las 129 pruebas de `node:test` |
 | Build | que el artefacto desplegable sea coherente (ver más abajo) |
 | Humo | que el sistema arranque, responda y llegue a su base |
 
