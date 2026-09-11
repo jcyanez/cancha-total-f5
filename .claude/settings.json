@@ -10,7 +10,6 @@
     ],
     "ask": [
       "Edit(./pruebas/**)",
-      "Write(./pruebas/**)",
       "Bash(git push)",
       "Bash(git push *)"
     ],
