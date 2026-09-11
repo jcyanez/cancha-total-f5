@@ -1,9 +1,9 @@
 ---
 name: cerrador-hallazgos
 description: Cierra o audita hallazgos de comportamiento sin ampliar el alcance ni debilitar las pruebas
-tools: Read, Glob, Grep, Edit, Bash
+tools: Read, Glob, Grep, Edit, Write, Bash
 model: inherit
-permissionMode: default
+permissionMode: acceptEdits
 maxTurns: 12
 ---
 
